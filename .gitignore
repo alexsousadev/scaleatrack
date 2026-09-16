@@ -1,0 +1,8 @@
+node_modules
+.next
+.env.local
+local.db
+local.db-*
+.agents
+.codex
+META_ACCESS_TOKEN=*
