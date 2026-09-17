@@ -16,6 +16,11 @@ const NAV = [
 function Header({ comPeriodo }: { comPeriodo: boolean }) {
   const { dashboards, dashboardId, setDashboardId } = usePanel()
 
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    window.location.href = '/login'
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-3 mb-6">
       {dashboards.length > 1 && (
@@ -27,6 +32,9 @@ function Header({ comPeriodo }: { comPeriodo: boolean }) {
         </select>
       )}
       {comPeriodo && <RangePicker />}
+      <button onClick={logout} className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-white hover:border-brand">
+        Sair
+      </button>
     </div>
   )
 }
