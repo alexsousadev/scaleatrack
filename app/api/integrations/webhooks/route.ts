@@ -5,11 +5,11 @@ import { errorResponse } from '@/lib/request'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const base = () => process.env.NEXT_PUBLIC_URL || 'http://localhost:3210'
+const base = (req: NextRequest) => process.env.APP_URL || req.nextUrl.origin
 
 /** As variacoes de URL que o gateway pede (afiliado, co-produtor, recorrencia). */
-function urlsFor(platform: string, id: string) {
-  const root = `${base()}/api/webhooks/${platform}?id=${id}`
+function urlsFor(req: NextRequest, platform: string, id: string) {
+  const root = `${base(req)}/api/webhooks/${platform}?id=${id}`
   const urls = [{ title: 'URL padrao', url: root }]
   if (platform === 'kirvano' || platform === 'hotmart' || platform === 'cakto') {
     urls.push(
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       args: [dashboardId],
     })
     return NextResponse.json({
-      webhooks: (r.rows as any[]).map((w) => ({ ...w, integrationUrls: urlsFor(w.platform, w.id) })),
+      webhooks: (r.rows as any[]).map((w) => ({ ...w, integrationUrls: urlsFor(req, w.platform, w.id) })),
     })
   } catch (e) {
     return errorResponse(e)
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       sql: `INSERT INTO webhooks (id, dashboard_id, name, platform, secret) VALUES (?,?,?,?,?)`,
       args: [id, dashboardId, name || platform, platform, secret || null],
     })
-    return NextResponse.json({ id, integrationUrls: urlsFor(platform, id) })
+    return NextResponse.json({ id, integrationUrls: urlsFor(req, platform, id) })
   } catch (e) {
     return errorResponse(e)
   }

@@ -63,7 +63,7 @@ por um `<img>` ou um SVG quando tiver o logo pronto.
 
 ```bash
 npm install
-cp .env.example .env.local   # ajuste NEXT_PUBLIC_URL
+cp .env.example .env.local   # ajuste APP_URL
 npm run dev                  # http://localhost:3210
 ```
 
