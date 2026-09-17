@@ -14,7 +14,7 @@ const NAV = [
 ]
 
 function Header({ comPeriodo }: { comPeriodo: boolean }) {
-  const { dashboards, dashboardId, setDashboardId } = usePanel()
+  const { dashboards, dashboardId, dashboardError, setDashboardId } = usePanel()
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -23,6 +23,11 @@ function Header({ comPeriodo }: { comPeriodo: boolean }) {
 
   return (
     <div className="flex flex-wrap items-center gap-3 mb-6">
+      {dashboardError && (
+        <div className="w-full border border-bad/40 bg-bad/10 text-bad rounded-lg px-3 py-2 text-sm">
+          {dashboardError}
+        </div>
+      )}
       {dashboards.length > 1 && (
         <select value={dashboardId} onChange={(e) => setDashboardId(e.target.value)}
                 className="bg-panel border border-line rounded-lg px-3 py-1.5 text-sm">

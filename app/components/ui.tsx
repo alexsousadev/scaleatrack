@@ -28,6 +28,7 @@ export function ratio(v: number | null | undefined) {
 type Ctx = {
   dashboardId: string
   setDashboardId: (id: string) => void
+  dashboardError: string
   from: string
   to: string
   setRange: (from: string, to: string) => void
@@ -47,19 +48,29 @@ const todayLocal = (tz = -3) => new Date(Date.now() + tz * 3600 * 1000).toISOStr
 export function PanelProvider({ children }: { children: React.ReactNode }) {
   const [dashboards, setDashboards] = useState<any[]>([])
   const [dashboardId, setDashboardId] = useState('')
+  const [dashboardError, setDashboardError] = useState('')
   const [from, setFrom] = useState(todayLocal())
   const [to, setTo] = useState(todayLocal())
 
   useEffect(() => {
     fetch('/api/dashboards')
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (r.status === 401) {
+          window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`
+          return null
+        }
+        const json = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(json.error || 'Nao foi possivel carregar os dashboards.')
+        return json
+      })
       .then((j) => {
+        if (!j) return
         setDashboards(j.dashboards || [])
         const saved = localStorage.getItem('rt_dashboard')
         const first = j.dashboards?.[0]?.id
         setDashboardId(j.dashboards?.some((d: any) => d.id === saved) ? saved! : first || '')
       })
-      .catch(() => {})
+      .catch((e) => setDashboardError(e?.message || 'Nao foi possivel carregar os dashboards.'))
   }, [])
 
   useEffect(() => {
@@ -70,7 +81,7 @@ export function PanelProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PanelContext.Provider
-      value={{ dashboardId, setDashboardId, from, to, setRange: (f, t) => { setFrom(f); setTo(t) }, dashboards, currency }}
+      value={{ dashboardId, setDashboardId, dashboardError, from, to, setRange: (f, t) => { setFrom(f); setTo(t) }, dashboards, currency }}
     >
       {children}
     </PanelContext.Provider>
