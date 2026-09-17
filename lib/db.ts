@@ -1,8 +1,14 @@
 import { createClient } from '@libsql/client'
 import { randomBytes } from 'crypto'
 
+const databaseUrl = process.env.TURSO_DATABASE_URL || (process.env.VERCEL ? '' : 'file:local.db')
+
+if (!databaseUrl) {
+  throw new Error('TURSO_DATABASE_URL ausente. Configure um banco Turso/libSQL nas variaveis de ambiente da Vercel.')
+}
+
 export const db = createClient({
-  url: process.env.TURSO_DATABASE_URL || 'file:local.db',
+  url: databaseUrl,
   authToken: process.env.TURSO_AUTH_TOKEN,
 })
 
