@@ -168,6 +168,35 @@ export async function getSummary(dashboardId: string, range: Range, filters: Fil
     args: [...args],
   })
 
+  const byAdAccount = await db.execute({
+    sql: `SELECT a.id,
+                 a.platform,
+                 a.account_id AS accountId,
+                 COALESCE(a.name, a.account_id) AS name,
+                 a.currency,
+                 a.enabled,
+                 COALESCE(s.spend, 0) AS spend,
+                 COALESCE(s.impressions, 0) AS impressions,
+                 COALESCE(s.clicks, 0) AS clicks,
+                 COALESCE(s.link_clicks, 0) AS linkClicks,
+                 s.lastUpdated
+          FROM ad_accounts a
+          LEFT JOIN (
+            SELECT account_id,
+                   SUM(spend_cents) AS spend,
+                   SUM(impressions) AS impressions,
+                   SUM(clicks) AS clicks,
+                   SUM(link_clicks) AS link_clicks,
+                   MAX(updated_at) AS lastUpdated
+            FROM ad_insights
+            WHERE dashboard_id = ? AND date BETWEEN ? AND ?
+            GROUP BY account_id
+          ) s ON s.account_id = a.account_id
+          WHERE a.dashboard_id = ?
+          ORDER BY spend DESC, name`,
+    args: [dashboardId, range.fromLocal, range.toLocal, dashboardId],
+  })
+
   return {
     revenue: netRevenue,
     grossRevenue: n(t.gross_revenue),
@@ -208,6 +237,7 @@ export async function getSummary(dashboardId: string, range: Range, filters: Fil
     byProduct: byProduct.rows as any[],
     byPaymentMethod: byPaymentMethod.rows as any[],
     bySource: bySource.rows as any[],
+    byAdAccount: byAdAccount.rows as any[],
   }
 }
 

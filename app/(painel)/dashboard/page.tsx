@@ -13,11 +13,24 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!query) return
-    setLoading(true)
-    fetch(`/api/metrics/summary?${query}`)
-      .then((r) => r.json())
-      .then(setData)
-      .finally(() => setLoading(false))
+    let alive = true
+    const load = () => {
+      setLoading(true)
+      fetch(`/api/metrics/summary?${query}`)
+        .then((r) => r.json())
+        .then((j) => {
+          if (alive) setData(j)
+        })
+        .finally(() => {
+          if (alive) setLoading(false)
+        })
+    }
+    load()
+    window.addEventListener('scaletrack:meta-sync', load)
+    return () => {
+      alive = false
+      window.removeEventListener('scaletrack:meta-sync', load)
+    }
   }, [query])
 
   if (loading || !data) return <p className="text-muted">Carregando...</p>
@@ -57,6 +70,7 @@ export default function DashboardPage() {
       <Chart title="Faturamento por hora" rows={data.byHour} xKey="hour" currency={currency} />
 
       <div className="grid md:grid-cols-2 gap-4">
+        <AdAccountsPanel rows={data.byAdAccount || []} totalSpend={data.spend} fallbackCurrency={currency} />
         <Panel title="Produtos" vazio={data.byProduct.length === 0}>
           {data.byProduct.map((p: any) => (
             <Row key={p.name} label={p.name} value={money(p.revenue, currency)} sub={`${num(p.sales)} vendas`} />
@@ -69,6 +83,34 @@ export default function DashboardPage() {
         </Panel>
       </div>
     </div>
+  )
+}
+
+function AdAccountsPanel({ rows, totalSpend, fallbackCurrency }: { rows: any[]; totalSpend: number; fallbackCurrency: string }) {
+  return (
+    <Panel title="Contas de anuncio" vazio={rows.length === 0}>
+      {rows.map((a: any) => {
+        const currency = a.currency || fallbackCurrency
+        const spend = Number(a.spend || 0)
+        const share = totalSpend > 0 ? Math.round((spend / totalSpend) * 100) : 0
+        const cpc = Number(a.clicks || 0) > 0 ? Math.round(spend / Number(a.clicks)) : null
+        return (
+          <div key={a.id || a.accountId} className="space-y-1.5">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="truncate" title={a.name}>{a.name}</span>
+              <span className="text-right shrink-0 font-medium">{money(spend, currency)}</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-ink overflow-hidden">
+              <div className="h-full bg-brand" style={{ width: `${Math.max(share, spend > 0 ? 4 : 0)}%` }} />
+            </div>
+            <div className="flex justify-between text-xs text-muted">
+              <span>{a.enabled ? 'ativa para sync' : 'sync desligado'}</span>
+              <span>{num(a.clicks)} cliques · CPC {cpc == null ? '—' : money(cpc, currency)}</span>
+            </div>
+          </div>
+        )
+      })}
+    </Panel>
   )
 }
 
