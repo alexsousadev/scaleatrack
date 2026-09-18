@@ -10,7 +10,7 @@ const NAV = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/utms', label: 'UTMs' },
   { href: '/anuncios', label: 'Anuncios' },
-  { href: '/pedidos', label: 'Pedidos' },
+  { href: '/pedidos', label: 'Vendas' },
   { href: '/integracoes', label: 'Integracoes' },
 ]
 
