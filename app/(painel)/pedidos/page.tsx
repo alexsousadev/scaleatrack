@@ -180,7 +180,7 @@ export default function PedidosPage() {
                     <span className="truncate text-sm" title={r.utm_campaign}>{r.utm_campaign || '-'}</span>
                   </Cell>
                   <Cell label="CAPI">
-                    <span className={`inline-flex rounded-full px-2 py-1 text-xs ${r.capi_status === 'sent' ? 'bg-brand text-black' : 'bg-ink text-muted border border-line'}`}>
+                    <span className={`inline-flex rounded-full px-2 py-1 text-xs ${r.capi_status === 'sent' ? 'bg-brand text-white' : 'bg-ink text-muted border border-line'}`}>
                       {r.capi_status === 'sent' ? 'Enviado' : '-'}
                     </span>
                   </Cell>

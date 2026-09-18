@@ -50,7 +50,7 @@ export default function LoginPage() {
         {error && <p className="text-sm text-bad">{error}</p>}
         <button
           disabled={loading || !password}
-          className="w-full bg-brand disabled:opacity-50 rounded-lg px-4 py-2 text-sm font-medium text-black"
+          className="w-full bg-brand disabled:opacity-50 rounded-lg px-4 py-2 text-sm font-medium text-white"
         >
           {loading ? 'Entrando...' : 'Entrar'}
         </button>

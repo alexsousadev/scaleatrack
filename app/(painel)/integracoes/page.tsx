@@ -140,7 +140,7 @@ function WebhooksTab({ dashboardId }: { dashboardId: string }) {
           </select>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Apelido (opcional)"
                  className="bg-ink border border-line rounded-lg px-3 py-2 text-sm flex-1 min-w-[180px]" />
-          <button onClick={create} className="bg-brand rounded-lg px-4 py-2 text-sm font-medium">Criar</button>
+          <button onClick={create} className="bg-brand rounded-lg px-4 py-2 text-sm font-medium text-white">Criar</button>
         </div>
       </Box>
 
@@ -211,7 +211,7 @@ function AccountsTab({ dashboardId }: { dashboardId: string }) {
         <div className="flex flex-wrap gap-2">
           <input value={token} onChange={(e) => setToken(e.target.value)} placeholder="Access token (ou usa o META_ACCESS_TOKEN do .env)"
                  className="bg-ink border border-line rounded-lg px-3 py-2 text-sm flex-1 min-w-[240px]" type="password" />
-          <button onClick={connect} className="bg-brand rounded-lg px-4 py-2 text-sm font-medium">Importar contas</button>
+          <button onClick={connect} className="bg-brand rounded-lg px-4 py-2 text-sm font-medium text-white">Importar contas</button>
         </div>
         {msg && <p className="text-muted text-xs">{msg}</p>}
       </Box>
@@ -277,7 +277,7 @@ function CostsTab({ dashboardId }: { dashboardId: string }) {
                  className="bg-ink border border-line rounded-lg px-3 py-2 text-sm w-32" />
           <input value={form.tax} onChange={(e) => setForm({ ...form, tax: e.target.value })} placeholder="Imposto (%)"
                  className="bg-ink border border-line rounded-lg px-3 py-2 text-sm w-32" />
-          <button onClick={save} disabled={!form.productName} className="bg-brand disabled:opacity-40 rounded-lg px-4 py-2 text-sm font-medium">
+          <button onClick={save} disabled={!form.productName} className="bg-brand disabled:opacity-40 rounded-lg px-4 py-2 text-sm font-medium text-white">
             Salvar
           </button>
         </div>

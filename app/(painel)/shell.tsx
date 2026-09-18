@@ -9,7 +9,7 @@ import { PanelProvider, RangePicker, usePanel } from '../components/ui'
 const NAV = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/utms', label: 'UTMs' },
-  { href: '/anuncios', label: 'Anuncios' },
+  { href: '/anuncios', label: 'Campanhas' },
   { href: '/pedidos', label: 'Vendas' },
   { href: '/integracoes', label: 'Integracoes' },
 ]
@@ -56,7 +56,7 @@ function Header({ comPeriodo }: { comPeriodo: boolean }) {
       )}
       {dashboards.length > 1 && (
         <select value={dashboardId} onChange={(e) => setDashboardId(e.target.value)}
-                className="bg-panel border border-line rounded-lg px-3 py-1.5 text-sm">
+                className="bg-panel border border-line rounded-lg px-3 py-1.5 text-sm shadow-sm">
           {dashboards.map((d) => (
             <option key={d.id} value={d.id}>{d.name}</option>
           ))}
@@ -66,7 +66,7 @@ function Header({ comPeriodo }: { comPeriodo: boolean }) {
       <button
         onClick={syncMeta}
         disabled={syncing}
-        className="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-white hover:border-brand disabled:opacity-50"
+        className="text-xs px-3 py-1.5 rounded-lg border border-line bg-panel text-white hover:border-brand disabled:opacity-50"
       >
         {syncing ? 'Sincronizando...' : 'Sincronizar Meta'}
       </button>
@@ -84,14 +84,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   return (
     <PanelProvider>
       <div className="flex min-h-screen">
-        <aside className="w-52 shrink-0 border-r border-line p-4 hidden md:block">
+        <aside className="w-60 shrink-0 border-r border-line bg-[#06101e]/85 p-4 hidden md:block">
           <div className="mb-8">
             <Logo />
           </div>
           <nav className="space-y-1">
             {NAV.map((n) => (
               <Link key={n.href} href={n.href}
-                    className={`block px-3 py-2 rounded-lg text-sm ${pathname === n.href ? 'bg-brand/15 text-white' : 'text-muted hover:text-white hover:bg-panel'}`}>
+                    className={`block px-3 py-2 rounded-lg text-sm ${pathname === n.href ? 'bg-brand/15 text-white border border-brand/20' : 'text-muted hover:text-white hover:bg-panel/70'}`}>
                 {n.label}
               </Link>
             ))}

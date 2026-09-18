@@ -99,7 +99,7 @@ export function useQuery() {
 export function Card({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: 'good' | 'bad' | 'neutral' }) {
   const color = tone === 'good' ? 'text-good' : tone === 'bad' ? 'text-bad' : 'text-white'
   return (
-    <div className="bg-panel border border-line rounded-xl p-4">
+    <div className="bg-panel border border-line rounded-xl p-5 shadow-[0_16px_40px_rgba(0,0,0,0.18)]">
       <div className="text-muted text-xs uppercase tracking-wide">{label}</div>
       <div className={`text-2xl font-semibold mt-1 ${color}`}>{value}</div>
       {hint && <div className="text-muted text-xs mt-1">{hint}</div>}
@@ -129,7 +129,7 @@ export function RangePicker() {
         ['30 dias', 30],
       ].map(([label, days]) => (
         <button key={label as string} onClick={() => preset(days as number)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-line hover:border-brand text-muted hover:text-white">
+                className="text-xs px-3 py-1.5 rounded-lg border border-line bg-panel hover:border-brand text-muted hover:text-white">
           {label as string}
         </button>
       ))}
@@ -140,9 +140,9 @@ export function RangePicker() {
 export function Table({ columns, rows, empty }: { columns: { key: string; label: string; align?: 'right'; render?: (row: any) => React.ReactNode }[]; rows: any[]; empty?: string }) {
   if (!rows.length) return <p className="text-muted text-sm py-8 text-center">{empty || 'Nada nesse periodo.'}</p>
   return (
-    <div className="overflow-x-auto border border-line rounded-xl">
+    <div className="overflow-x-auto border border-line rounded-xl bg-panel">
       <table className="w-full text-sm min-w-[900px]">
-        <thead className="bg-panel">
+        <thead className="bg-[#132755]">
           <tr>
             {columns.map((c) => (
               <th key={c.key} className={`px-3 py-2.5 font-medium text-muted text-xs uppercase tracking-wide ${c.align === 'right' ? 'text-right' : 'text-left'}`}>

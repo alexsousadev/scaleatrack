@@ -2,34 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-/*
- * Paleta do template. Pra trocar a marca, mude so estas variaveis —
- * Tailwind e os graficos leem daqui.
- */
 :root {
   color-scheme: dark;
 
-  --ink:   #0a0a0b;  /* fundo */
-  --panel: #141416;  /* cartoes */
-  --line:  #26262b;  /* bordas */
-  --muted: #8d8d96;  /* texto secundario */
-  --text:  #f4f1ec;  /* texto principal */
+  --ink:   #07111f;
+  --panel: #102044;
+  --panel-2: #0c1830;
+  --line:  #1d376d;
+  --muted: #8fa3c7;
+  --text:  #edf4ff;
 
-  --brand: #ff6a00;  /* laranja da marca */
-  --good:  #ff8c42;  /* resultado positivo */
-  --bad:   #f04438;  /* prejuizo, reembolso */
-  --warn:  #fbbf24;  /* pendente */
+  --brand: #2f80ff;
+  --brand-2: #62a2ff;
+  --good:  #47d18c;
+  --bad:   #ff4d3d;
+  --warn:  #ffb020;
+}
+
+html {
+  background: var(--ink);
 }
 
 body {
-  background: var(--ink);
+  background:
+    radial-gradient(circle at top right, rgba(47, 128, 255, 0.12), transparent 30rem),
+    linear-gradient(180deg, #081221 0%, #07111f 42rem);
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
+::-webkit-scrollbar-thumb { background: #244579; border-radius: 6px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--brand); }
 ::-webkit-scrollbar-track { background: transparent; }
 
-::selection { background: var(--brand); color: #0a0a0b; }
+::selection { background: var(--brand); color: white; }
+
+input,
+select,
+button {
+  color-scheme: dark;
+}
