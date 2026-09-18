@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState } from 'react'
 import Logo from '../components/logo'
 import { PanelProvider, RangePicker, usePanel } from '../components/ui'
 
@@ -15,10 +16,35 @@ const NAV = [
 
 function Header({ comPeriodo }: { comPeriodo: boolean }) {
   const { dashboards, dashboardId, dashboardError, setDashboardId } = usePanel()
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' })
     window.location.href = '/login'
+  }
+
+  async function syncMeta() {
+    setSyncing(true)
+    setSyncMsg('')
+    try {
+      const res = await fetch('/api/integrations/sync-meta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 7 }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Falha ao sincronizar.')
+
+      const errors = (data.results || []).filter((r: any) => r.error)
+      const rows = (data.results || []).reduce((sum: number, r: any) => sum + Number(r.insightRows || 0), 0)
+      setSyncMsg(errors.length ? `${errors.length} conta(s) com erro` : `${rows} linha(s) importadas`)
+      window.dispatchEvent(new Event('scaletrack:meta-sync'))
+    } catch (e: any) {
+      setSyncMsg(e?.message || 'Falha ao sincronizar.')
+    } finally {
+      setSyncing(false)
+    }
   }
 
   return (
@@ -37,6 +63,14 @@ function Header({ comPeriodo }: { comPeriodo: boolean }) {
         </select>
       )}
       {comPeriodo && <RangePicker />}
+      <button
+        onClick={syncMeta}
+        disabled={syncing}
+        className="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-white hover:border-brand disabled:opacity-50"
+      >
+        {syncing ? 'Sincronizando...' : 'Sincronizar Meta'}
+      </button>
+      {syncMsg && <span className="text-xs text-muted">{syncMsg}</span>}
       <button onClick={logout} className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-white hover:border-brand">
         Sair
       </button>
