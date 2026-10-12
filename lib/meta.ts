@@ -23,6 +23,22 @@ type InsightRow = {
   adset_name?: string
   ad_id?: string
   ad_name?: string
+  actions?: Array<{ action_type: string; value: string }>
+}
+
+/*
+ * A Meta repete o mesmo evento com varios nomes (pixel, omni, onsite...).
+ * Pegamos o primeiro que existir, na ordem, pra nao somar em dobro.
+ */
+const LANDING_PAGE_VIEW = ['omni_landing_page_view', 'landing_page_view']
+const INITIATE_CHECKOUT = ['omni_initiated_checkout', 'offsite_conversion.fb_pixel_initiate_checkout', 'initiate_checkout']
+
+function actionValue(actions: InsightRow['actions'], types: string[]) {
+  for (const t of types) {
+    const hit = actions?.find((a) => a.action_type === t)
+    if (hit) return Number(hit.value) || 0
+  }
+  return 0
 }
 
 async function graph<T>(url: string): Promise<T> {
@@ -72,7 +88,7 @@ export async function syncMetaInsights(opts: {
   const { dashboardId, accountId, accessToken, since, until } = opts
 
   const fields = [
-    'spend', 'impressions', 'clicks', 'inline_link_clicks', 'reach',
+    'spend', 'impressions', 'clicks', 'inline_link_clicks', 'reach', 'actions',
     'account_id', 'campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name',
   ].join(',')
 
@@ -94,18 +110,22 @@ export async function syncMetaInsights(opts: {
 
       stmts.push({
         sql: `INSERT INTO ad_insights (dashboard_id, platform, date, account_id, campaign_id, adset_id, ad_id,
-                                       spend_cents, impressions, clicks, link_clicks, reach, updated_at)
-              VALUES (?, 'meta', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                                       spend_cents, impressions, clicks, link_clicks, reach,
+                                       landing_page_views, initiate_checkouts, updated_at)
+              VALUES (?, 'meta', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
               ON CONFLICT (dashboard_id, platform, ad_id, date) DO UPDATE SET
                 spend_cents = excluded.spend_cents,
                 impressions = excluded.impressions,
                 clicks      = excluded.clicks,
                 link_clicks = excluded.link_clicks,
                 reach       = excluded.reach,
+                landing_page_views = excluded.landing_page_views,
+                initiate_checkouts = excluded.initiate_checkouts,
                 updated_at  = datetime('now')`,
         args: [
           dashboardId, r.date_start, accountId, r.campaign_id ?? null, r.adset_id ?? null, r.ad_id,
           cents, Number(r.impressions || 0), Number(r.clicks || 0), Number(r.inline_link_clicks || 0), Number(r.reach || 0),
+          actionValue(r.actions, LANDING_PAGE_VIEW), actionValue(r.actions, INITIATE_CHECKOUT),
         ],
       })
       rows++
@@ -140,7 +160,7 @@ export async function syncMetaInsights(opts: {
 /** Status, hierarquia e orcamento atuais - a API de insights nao devolve isso. */
 export async function syncMetaStatuses(opts: { dashboardId: string; accountId: string; accessToken: string }) {
   const { dashboardId, accountId, accessToken } = opts
-  let campaignsUrl = `${GRAPH}/act_${accountId}/campaigns?fields=id,name,status,effective_status,daily_budget,lifetime_budget,budget_remaining&limit=500&access_token=${encodeURIComponent(accessToken)}`
+  let campaignsUrl = `${GRAPH}/act_${accountId}/campaigns?fields=id,name,status,effective_status,bid_strategy,daily_budget,lifetime_budget,budget_remaining&limit=500&access_token=${encodeURIComponent(accessToken)}`
   let url = `${GRAPH}/act_${accountId}/ads?fields=id,name,status,effective_status,adset_id,campaign_id&limit=500&access_token=${encodeURIComponent(accessToken)}`
   let count = 0
   const stmts: Stmt[] = []
@@ -153,16 +173,19 @@ export async function syncMetaStatuses(opts: { dashboardId: string; accountId: s
       stmts.push({
         sql: `INSERT INTO ad_objects (
                 dashboard_id, platform, level, object_id, account_id, name, status, effective_status,
+                bid_strategy,
                 budget_cents, daily_budget_cents, lifetime_budget_cents, budget_remaining_cents, updated_at
               )
-              VALUES (?, 'meta', 'campaign', ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+              VALUES (?, 'meta', 'campaign', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
               ON CONFLICT (dashboard_id, platform, level, object_id) DO UPDATE SET
                 name = excluded.name, status = excluded.status, effective_status = excluded.effective_status,
+                bid_strategy = excluded.bid_strategy,
                 budget_cents = excluded.budget_cents, daily_budget_cents = excluded.daily_budget_cents,
                 lifetime_budget_cents = excluded.lifetime_budget_cents, budget_remaining_cents = excluded.budget_remaining_cents,
                 updated_at = datetime('now')`,
         args: [
           dashboardId, campaign.id, accountId, campaign.name, campaign.status, campaign.effective_status,
+          campaign.bid_strategy ?? null,
           daily ?? lifetime, daily, lifetime, centsFromMetaBudget(campaign.budget_remaining),
         ],
       })
@@ -172,7 +195,7 @@ export async function syncMetaStatuses(opts: { dashboardId: string; accountId: s
     campaignsUrl = page.paging?.next || ''
   }
 
-  let adsetsUrl = `${GRAPH}/act_${accountId}/adsets?fields=id,name,status,effective_status,campaign_id,daily_budget,lifetime_budget,budget_remaining&limit=500&access_token=${encodeURIComponent(accessToken)}`
+  let adsetsUrl = `${GRAPH}/act_${accountId}/adsets?fields=id,name,status,effective_status,bid_amount,bid_strategy,campaign_id,daily_budget,lifetime_budget,budget_remaining&limit=500&access_token=${encodeURIComponent(accessToken)}`
   while (adsetsUrl) {
     const page = await graph<{ data: any[]; paging?: { next?: string } }>(adsetsUrl)
     for (const adset of page.data || []) {
@@ -181,16 +204,20 @@ export async function syncMetaStatuses(opts: { dashboardId: string; accountId: s
       stmts.push({
         sql: `INSERT INTO ad_objects (
                 dashboard_id, platform, level, object_id, account_id, campaign_id, name, status, effective_status,
+                bid_amount_cents, bid_strategy,
                 budget_cents, daily_budget_cents, lifetime_budget_cents, budget_remaining_cents, updated_at
               )
-              VALUES (?, 'meta', 'adset', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+              VALUES (?, 'meta', 'adset', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
               ON CONFLICT (dashboard_id, platform, level, object_id) DO UPDATE SET
                 name = excluded.name, campaign_id = excluded.campaign_id, status = excluded.status,
-                effective_status = excluded.effective_status, budget_cents = excluded.budget_cents,
+                effective_status = excluded.effective_status,
+                bid_amount_cents = excluded.bid_amount_cents, bid_strategy = excluded.bid_strategy,
+                budget_cents = excluded.budget_cents,
                 daily_budget_cents = excluded.daily_budget_cents, lifetime_budget_cents = excluded.lifetime_budget_cents,
                 budget_remaining_cents = excluded.budget_remaining_cents, updated_at = datetime('now')`,
         args: [
           dashboardId, adset.id, accountId, adset.campaign_id ?? null, adset.name, adset.status, adset.effective_status,
+          centsFromMetaBudget(adset.bid_amount), adset.bid_strategy ?? null,
           daily ?? lifetime, daily, lifetime, centsFromMetaBudget(adset.budget_remaining),
         ],
       })

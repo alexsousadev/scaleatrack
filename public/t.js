@@ -291,6 +291,9 @@
           })
         if (!ok) return
       }
+      if (c && c.dashboardId) {
+        DASHBOARD = c.dashboardId
+      }
       config = c
     })
     .catch(function () {})

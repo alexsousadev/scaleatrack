@@ -313,6 +313,12 @@ export function initDb() {
       await addColumn('ad_accounts', 'business_id', 'TEXT')
       await addColumn('ad_accounts', 'business_name', 'TEXT')
       await addColumn('ad_accounts', 'account_status', 'INTEGER')
+      // Lance (bid) e estrategia - usados na coluna "Lance" da aba Anuncios.
+      await addColumn('ad_objects', 'bid_amount_cents', 'INTEGER')
+      await addColumn('ad_objects', 'bid_strategy', 'TEXT')
+      // Actions da Meta: landing_page_view (Visitas) e initiate_checkout (IC).
+      await addColumn('ad_insights', 'landing_page_views', 'INTEGER NOT NULL DEFAULT 0')
+      await addColumn('ad_insights', 'initiate_checkouts', 'INTEGER NOT NULL DEFAULT 0')
     })().catch((e) => {
       ready = null
       throw e

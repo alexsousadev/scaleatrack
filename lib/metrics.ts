@@ -363,7 +363,9 @@ export async function getAdObjects(
   }
   const spendRows = await db.execute({
     sql: `SELECT ${col} AS object_id, SUM(spend_cents) AS spend, SUM(impressions) AS impressions,
-                 SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks
+                 SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks,
+                 SUM(landing_page_views) AS visits,
+                 SUM(initiate_checkouts) AS ic
           FROM ad_insights WHERE ${spendWhere}
           GROUP BY object_id`,
     args: spendArgs,
@@ -377,6 +379,7 @@ export async function getAdObjects(
   }
   const names = await db.execute({
     sql: `SELECT object_id, name, status, effective_status, account_id, campaign_id, adset_id,
+                 bid_amount_cents, bid_strategy,
                  budget_cents, daily_budget_cents, lifetime_budget_cents, budget_remaining_cents,
                  (SELECT a.enabled FROM ad_accounts a
                    WHERE a.dashboard_id = ad_objects.dashboard_id AND a.account_id = ad_objects.account_id
@@ -409,6 +412,9 @@ export async function getAdObjects(
         accountId: meta?.account_id ?? null,
         campaignId: meta?.campaign_id ?? null,
         adsetId: meta?.adset_id ?? null,
+        adId: level === 'ad' ? id : null,
+        bidAmount: n(meta?.bid_amount_cents),
+        bidStrategy: meta?.bid_strategy ?? null,
         budget: n(meta?.budget_cents),
         dailyBudget: n(meta?.daily_budget_cents),
         lifetimeBudget: n(meta?.lifetime_budget_cents),
@@ -430,6 +436,8 @@ function decorate(sales: any, spendRow: any) {
   const profit = revenue - spend - cost
   const impressions = n(spendRow?.impressions)
   const clicks = n(spendRow?.clicks)
+  const visits = n(spendRow?.visits)
+  const ic = n(spendRow?.ic)
 
   return {
     value: sales.value ?? null,
@@ -450,8 +458,13 @@ function decorate(sales: any, spendRow: any) {
     cpt: total > 0 && spend > 0 ? Math.round(spend / total) : null,
     cpp: pending > 0 && spend > 0 ? Math.round(spend / pending) : null,
     averageTicket: approved > 0 ? Math.round(revenue / approved) : 0,
+    arpu: visits > 0 ? Math.round(revenue / visits) : approved > 0 ? Math.round(revenue / approved) : 0,
+    costPerIc: ic > 0 && spend > 0 ? Math.round(spend / ic) : null,
     impressions,
     clicks,
+    visits,
+    ic,
+    icRate: visits > 0 ? ic / visits : clicks > 0 ? ic / clicks : null,
     ctr: impressions > 0 ? clicks / impressions : null,
     cpm: impressions > 0 ? Math.round((spend / impressions) * 1000) : null,
     cpc: clicks > 0 ? Math.round(spend / clicks) : null,

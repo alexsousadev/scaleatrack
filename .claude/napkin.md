@@ -24,6 +24,14 @@
    Do instead: incluir objetos `ACTIVE` de `ad_objects` de contas `enabled = 1` (ja feito em `lib/metrics.ts`).
 2. **[2026-10-11] Banco parado em 26/09 = cron de sync nao rodando em producao**
    Do instead: checar `MAX(date)` em `ad_insights`; ver se o cron da Vercel esta ativo (`*/30` exige plano Pro).
+3. **[2026-10-11] Personalizacao de colunas da tabela de anuncios**
+   Suporta todas as metricas (Lance, Gasto, Vendas, Margem, CPA, ARPU, Custo por IC, CPC, CTR, CPM, Impressoes, Cliques, Visitas, IC, % IC, IDs).
+   Do instead: guardar selecao de colunas no localStorage (`scaletrack_ad_columns_v2`).
+
+## Tracking & Pixel
+1. **[2026-10-11] Script unificado de rastreio**
+   O script gerado no card do Pixel ja faz tudo (captura UTMs, grava visita no banco, repassa pro checkout e dispara eventos CAPI). Nao instalar scripts duplicados.
+   Do instead: usar apenas a tag de `<script src="/t.js" ...>` gerada no Pixel.
 
 ## Debug rapido
 1. **Testar token direto via curl**

@@ -364,8 +364,68 @@ function PixelsTab({ dashboardId }: { dashboardId: string }) {
           <Field label="PIXEL ID *" hint="Gerenciador de Eventos -> Fontes de Dados -> ID do Pixel"><input value={form.platformPixelId} onChange={(e) => setForm({ ...form, platformPixelId: e.target.value })} className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm" placeholder="Ex: 123456789012345" /></Field>
           <Field label="TOKEN CAPI" hint="Gerenciador de Eventos -> Configuracoes -> Gerar Token de Acesso"><input value={form.capiToken} onChange={(e) => setForm({ ...form, capiToken: e.target.value })} className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm" placeholder={editing ? 'Deixe vazio para manter o token atual' : 'EAAxxxxxxxx...'} type="password" /></Field>
           <div className="grid grid-cols-[1fr_.95fr] gap-3">
-            <Field label="REGRA DE DETECCAO IC"><select value={form.icDetectionType} onChange={(e) => setForm({ ...form, icDetectionType: e.target.value, sendInitiateCheckout: true })} className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm"><option value="button_url_match">Contem URL</option><option value="button_text_match">Contem texto</option><option value="button_css_match">Seletor CSS</option></select></Field>
-            <Field label="VALOR DA REGRA" hint="Fragmento presente no link."><input value={form.icDetectionValue} onChange={(e) => setForm({ ...form, icDetectionValue: e.target.value, sendInitiateCheckout: true })} className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm" placeholder="Ex: pay.hotmart.com" /></Field>
+            <Field label="REGRA DE DETECCAO IC">
+              <select
+                value={form.icDetectionType}
+                onChange={(e) => setForm({ ...form, icDetectionType: e.target.value, sendInitiateCheckout: true })}
+                className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm"
+              >
+                <option value="button_url_match">Contem URL</option>
+                <option value="button_text_match">Contem texto</option>
+                <option value="button_css_match">Seletor CSS</option>
+              </select>
+            </Field>
+
+            <Field label="VALOR DA REGRA" hint="Selecione um gateway ou escolha Outro para digitar.">
+              {form.icDetectionType === 'button_url_match' ? (
+                <div className="space-y-2">
+                  <select
+                    value={
+                      ['pay.hotmart.com', 'checkout.wiapay.com.br', 'checkout.lowify.com.br', 'checkout'].includes(
+                        form.icDetectionValue || ''
+                      )
+                        ? form.icDetectionValue
+                        : 'outro'
+                    }
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (val === 'outro') {
+                        setForm({ ...form, icDetectionValue: '', sendInitiateCheckout: true })
+                      } else {
+                        setForm({ ...form, icDetectionValue: val, sendInitiateCheckout: true })
+                      }
+                    }}
+                    className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm"
+                  >
+                    <option value="pay.hotmart.com">Hotmart (pay.hotmart.com)</option>
+                    <option value="checkout.wiapay.com.br">Wiapay (wiapay)</option>
+                    <option value="checkout.lowify.com.br">Lowify (lowify)</option>
+                    <option value="checkout">Genérico (checkout)</option>
+                    <option value="outro">Outro (digitar manual)...</option>
+                  </select>
+
+                  {(!['pay.hotmart.com', 'checkout.wiapay.com.br', 'checkout.lowify.com.br', 'checkout'].includes(
+                    form.icDetectionValue || ''
+                  ) ||
+                    form.icDetectionValue === '') && (
+                    <input
+                      value={form.icDetectionValue}
+                      onChange={(e) => setForm({ ...form, icDetectionValue: e.target.value, sendInitiateCheckout: true })}
+                      className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm"
+                      placeholder="Ex: pay.seugateway.com"
+                      autoFocus
+                    />
+                  )}
+                </div>
+              ) : (
+                <input
+                  value={form.icDetectionValue}
+                  onChange={(e) => setForm({ ...form, icDetectionValue: e.target.value, sendInitiateCheckout: true })}
+                  className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm"
+                  placeholder="Ex: Comprar Agora ou #btn-checkout"
+                />
+              )}
+            </Field>
           </div>
           <Field label="DOMINIOS AUTORIZADOS (OPCIONAL)" hint="1 por linha. Vazio aceita qualquer lugar. Use dominio ou URL completa."><textarea value={form.allowedDomain} onChange={(e) => setForm({ ...form, allowedDomain: e.target.value })} className="w-full min-h-[66px] rounded-md border border-line bg-ink px-3 py-2 text-sm" placeholder={'meusite.com.br\nmeusite.com.br/p/123/produto-x'} /></Field>
           <details className="rounded-md border border-line bg-ink/35 p-3"><summary className="cursor-pointer text-xs font-semibold text-muted">Opcoes avancadas</summary><div className="mt-3 grid gap-2"><select value={form.sendPurchaseType} onChange={(e) => setForm({ ...form, sendPurchaseType: e.target.value })} className="rounded-md border border-line bg-ink px-3 py-2 text-sm"><option value="paid_sales_only">Purchase so vendas pagas</option><option value="paid_and_pending_sales">Purchase pagas e pendentes</option></select><select value={form.sendValueType} onChange={(e) => setForm({ ...form, sendValueType: e.target.value })} className="rounded-md border border-line bg-ink px-3 py-2 text-sm"><option value="commission">Valor: comissao</option><option value="gross">Valor: bruto</option><option value="no_value">Sem valor</option></select><input value={form.testCode} onChange={(e) => setForm({ ...form, testCode: e.target.value })} className="rounded-md border border-line bg-ink px-3 py-2 text-sm" placeholder="Codigo de teste" /></div></details>
