@@ -30,7 +30,15 @@ function isPublicPath(pathname: string) {
 
 export async function proxy(request: NextRequest) {
   const expected = await authToken()
-  if (!expected || isPublicPath(request.nextUrl.pathname)) return NextResponse.next()
+  if (isPublicPath(request.nextUrl.pathname)) return NextResponse.next()
+
+  if (!expected) {
+    if (request.nextUrl.pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'autenticacao nao configurada' }, { status: 503 })
+    }
+
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
 
   const current = request.cookies.get(COOKIE_NAME)?.value
   if (current === expected) return NextResponse.next()

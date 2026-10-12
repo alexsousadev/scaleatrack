@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireCronSecret } from '@/lib/cron-auth'
 import { syncEnabledMetaAccounts } from '@/lib/meta-sync'
 
 export const runtime = 'nodejs'
@@ -12,11 +13,8 @@ export const maxDuration = 300
  *   GET /api/cron/sync-meta?days=7   (header: x-cron-secret)
  */
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get('x-cron-secret') || req.nextUrl.searchParams.get('secret')
-  const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
-  if (process.env.CRON_SECRET && secret !== process.env.CRON_SECRET && bearer !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'nao autorizado' }, { status: 401 })
-  }
+  const unauthorized = requireCronSecret(req)
+  if (unauthorized) return unauthorized
 
   return NextResponse.json(await syncEnabledMetaAccounts(Number(req.nextUrl.searchParams.get('days') || 3)))
 }

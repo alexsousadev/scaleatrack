@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash, timingSafeEqual } from 'crypto'
+import { clearFailedLogins, isLoginRateLimited, loginRateLimitKey, recordFailedLogin } from '@/lib/login-rate-limit'
 
 const COOKIE_NAME = 'scaletrack_auth'
 
@@ -19,7 +20,14 @@ function same(a: string, b: string) {
 
 export async function POST(req: NextRequest) {
   const expectedPassword = process.env.PANEL_PASSWORD
-  if (!expectedPassword) return NextResponse.json({ ok: true })
+  if (!expectedPassword) {
+    return NextResponse.json({ ok: false, error: 'autenticacao nao configurada' }, { status: 503 })
+  }
+
+  const rateLimitKey = loginRateLimitKey(req.headers)
+  if (isLoginRateLimited(rateLimitKey)) {
+    return NextResponse.json({ ok: false, error: 'muitas tentativas' }, { status: 429 })
+  }
 
   let body: any
   try {
@@ -30,9 +38,11 @@ export async function POST(req: NextRequest) {
 
   const password = String(body?.password || '')
   if (!same(password, expectedPassword)) {
+    recordFailedLogin(rateLimitKey)
     return NextResponse.json({ ok: false }, { status: 401 })
   }
 
+  clearFailedLogins(rateLimitKey)
   const token = authToken()
   const res = NextResponse.json({ ok: true })
   res.cookies.set(COOKIE_NAME, token!, {

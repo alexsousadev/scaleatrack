@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import Logo from '../components/logo'
 
+function safeRedirectPath(value: string) {
+  return value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\') ? value : '/dashboard'
+}
+
 export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -26,7 +30,7 @@ export default function LoginPage() {
       return
     }
 
-    window.location.href = next.startsWith('/') ? next : '/dashboard'
+    window.location.href = safeRedirectPath(next)
   }
 
   return (

@@ -3,13 +3,11 @@
 Tracking e atribuicao de vendas para trafego pago. Liga o gasto do anuncio a
 venda do gateway e mostra lucro real por campanha, conjunto e anuncio.
 
-Template limpo: sobe sem nenhum dado e sem tela de login. Abriu, ja esta dentro —
-o dashboard padrao se cria sozinho no primeiro acesso.
+Template limpo: sobe sem nenhum dado. O dashboard padrao se cria sozinho no
+primeiro acesso depois do login.
 
-> **Nao tem autenticacao.** Quem alcancar a URL ve o faturamento. Roda local ou
-> atras de algo que ja protege (rede interna, tunel, Basic Auth do proxy,
-> protecao de deploy da Vercel). Se for expor na internet aberta, ponha uma
-> camada de acesso antes.
+> **Autenticacao obrigatoria.** Configure `PANEL_PASSWORD` e
+> `PANEL_AUTH_SECRET`; sem `PANEL_PASSWORD`, o painel protegido nao abre os dados.
 
 ## Como funciona
 
@@ -87,7 +85,9 @@ Variaveis obrigatorias para deploy:
 
 - `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN` para o banco.
 - `APP_URL` com a URL publica final do painel.
-- `PANEL_PASSWORD` e `PANEL_AUTH_SECRET` para proteger o painel.
+- `PANEL_PASSWORD` e `PANEL_AUTH_SECRET` para proteger o painel. A rota de login
+  aplica limite de tentativas por IP em memoria; em deploy serverless com muitas
+  instancias, mantenha tambem uma protecao de borda/WAF quando possivel.
 - `CRON_SECRET` com um valor forte, diferente do exemplo.
 - `META_ACCESS_TOKEN` opcional se voce preferir nao colar o token por conta no painel.
 
