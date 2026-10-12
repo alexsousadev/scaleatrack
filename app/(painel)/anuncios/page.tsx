@@ -115,14 +115,26 @@ function childLevel(level: LevelId): LevelId | null {
 }
 
 function bidOrBudgetLabel(r: any, currency: string) {
-  if (r.bidAmount && r.bidAmount > 0) {
-    const strat = r.bidStrategy ? ` (${r.bidStrategy.replace(/_/g, ' ').toLowerCase()})` : ''
-    return `${money(r.bidAmount, currency)}${strat}`
+  const budget = Number(r.budget || r.dailyBudget || r.lifetimeBudget || 0)
+  if (budget > 0) {
+    const kind = Number(r.lifetimeBudget || 0) > 0 ? 'Total' : 'Diário'
+    return (
+      <div>
+        <div>{money(budget, currency)}</div>
+        <div className="text-[10px] text-muted">{kind}</div>
+      </div>
+    )
   }
-  const budget = Number(r.budget || 0)
-  if (budget <= 0) return '-'
-  const kind = Number(r.lifetimeBudget || 0) > 0 ? 'total' : 'dia'
-  return `${money(budget, currency)} / ${kind}`
+  if (r.bidAmount && r.bidAmount > 0) {
+    const strat = r.bidStrategy ? r.bidStrategy.replace(/_/g, ' ').toLowerCase() : 'Lance'
+    return (
+      <div>
+        <div>{money(r.bidAmount, currency)}</div>
+        <div className="text-[10px] text-muted">{strat}</div>
+      </div>
+    )
+  }
+  return <span className="text-muted">-</span>
 }
 
 export default function AnunciosPage() {
@@ -131,7 +143,9 @@ export default function AnunciosPage() {
   const [level, setLevel] = useState<LevelId>('campaign')
   const [trail, setTrail] = useState<{ level: LevelId; id: string; name: string }[]>([])
   const [status, setStatus] = useState('')
-  const [sort, setSort] = useState('spend')
+  const [search, setSearch] = useState('')
+  const [sortField, setSortField] = useState<string>('spend')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [rows, setRows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -163,14 +177,54 @@ export default function AnunciosPage() {
   }, [query, level, trail])
 
   const filtered = useMemo(() => {
-    const list = rows.filter((r) => {
+    let list = rows.filter((r) => {
       if (status === 'red') return r.profit < 0 || (r.spend > 0 && r.approvedOrders === 0)
       if (status === 'sales') return r.approvedOrders > 0
       if (status) return String(r.status || '').toUpperCase().includes(status)
       return true
     })
-    return [...list].sort((a, b) => Number(b[sort] || 0) - Number(a[sort] || 0))
-  }, [rows, status, sort])
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      list = list.filter((r) => {
+        const name = String(r.name || '').toLowerCase()
+        const id = String(r.id || '').toLowerCase()
+        const campId = String(r.campaignId || '').toLowerCase()
+        const adsetId = String(r.adsetId || '').toLowerCase()
+        return name.includes(q) || id.includes(q) || campId.includes(q) || adsetId.includes(q)
+      })
+    }
+
+    return [...list].sort((a, b) => {
+      let va: any = a[sortField]
+      let vb: any = b[sortField]
+
+      if (sortField === 'name') {
+        va = String(a.name || '')
+        vb = String(b.name || '')
+        return sortOrder === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+      }
+
+      if (sortField === 'bid') {
+        va = Number(a.budget || a.bidAmount || 0)
+        vb = Number(b.budget || b.bidAmount || 0)
+      } else {
+        va = Number(va || 0)
+        vb = Number(vb || 0)
+      }
+
+      return sortOrder === 'asc' ? va - vb : vb - va
+    })
+  }, [rows, status, search, sortField, sortOrder])
+
+  function handleSort(field: string) {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortOrder('desc')
+    }
+  }
 
   const totals = useMemo(
     () =>
@@ -373,6 +427,37 @@ export default function AnunciosPage() {
 
       <div className="bg-panel border border-line rounded-xl p-4 flex flex-wrap items-end gap-3">
         <label className="space-y-1">
+          <span className="block text-xs text-muted">Buscar</span>
+          <div className="relative">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Nome, oferta ou ID..."
+              className="bg-ink border border-line rounded-lg pl-8 pr-3 py-2 text-sm w-56 placeholder:text-muted/60"
+            />
+            <svg
+              className="w-3.5 h-3.5 text-muted absolute left-2.5 top-3"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-2.5 text-muted hover:text-white text-xs"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </label>
+
+        <label className="space-y-1">
           <span className="block text-xs text-muted">Status</span>
           <select
             value={status}
@@ -384,23 +469,6 @@ export default function AnunciosPage() {
                 {s.label}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="space-y-1">
-          <span className="block text-xs text-muted">Ordenar por</span>
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            className="bg-ink border border-line rounded-lg px-3 py-2 text-sm w-40"
-          >
-            <option value="spend">Gasto</option>
-            <option value="revenue">Faturamento</option>
-            <option value="profit">Lucro</option>
-            <option value="approvedOrders">Vendas</option>
-            <option value="roas">ROAS</option>
-            <option value="cpa">CPA</option>
-            <option value="clicks">Cliques</option>
-            <option value="visits">Visitas</option>
           </select>
         </label>
 
@@ -437,31 +505,33 @@ export default function AnunciosPage() {
             <thead>
               <tr className="text-[11px] uppercase tracking-wide text-muted border-b border-line">
                 <th className="text-left px-4 py-3 w-12">Status</th>
-                <th className="text-left px-4 py-3">{current.title.slice(0, -1) || 'Nome'}</th>
-                {isCol('bid') && <Th>Lance</Th>}
-                {isCol('spend') && <Th>Gasto</Th>}
-                {isCol('sales') && <Th>Vendas</Th>}
-                {isCol('pendingSales') && <Th>Vendas Pend.</Th>}
-                {isCol('revenue') && <Th>Faturamento</Th>}
-                {isCol('profit') && <Th>Lucro</Th>}
-                {isCol('roas') && <Th>ROAS</Th>}
-                {isCol('margin') && <Th>Margem</Th>}
-                {isCol('cpa') && <Th>CPA</Th>}
-                {isCol('arpu') && <Th>ARPU</Th>}
-                {isCol('costPerIc') && <Th>Custo por IC</Th>}
-                {isCol('cpc') && <Th>CPC</Th>}
-                {isCol('ctr') && <Th>CTR</Th>}
-                {isCol('cpm') && <Th>CPM</Th>}
-                {isCol('impressions') && <Th>Impressões</Th>}
-                {isCol('clicks') && <Th>Cliques</Th>}
-                {isCol('visits') && <Th>Visitas</Th>}
-                {isCol('ic') && <Th>IC</Th>}
-                {isCol('icRate') && <Th>% IC</Th>}
-                {isCol('id') && <Th>ID</Th>}
-                {isCol('campaignId') && <Th>ID Campanha</Th>}
-                {isCol('adsetId') && <Th>ID Conjunto</Th>}
-                {isCol('adId') && <Th>ID Anúncio</Th>}
-                {isCol('verdict') && <Th>Veredito</Th>}
+                <Th align="left" field="name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>
+                  {current.title.slice(0, -1) || 'Nome'}
+                </Th>
+                {isCol('bid') && <Th field="bid" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Orçamento / Lance</Th>}
+                {isCol('spend') && <Th field="spend" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Gasto</Th>}
+                {isCol('sales') && <Th field="approvedOrders" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Vendas</Th>}
+                {isCol('pendingSales') && <Th field="pendingOrders" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Vendas Pend.</Th>}
+                {isCol('revenue') && <Th field="revenue" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Faturamento</Th>}
+                {isCol('profit') && <Th field="profit" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Lucro</Th>}
+                {isCol('roas') && <Th field="roas" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>ROAS</Th>}
+                {isCol('margin') && <Th field="margin" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Margem</Th>}
+                {isCol('cpa') && <Th field="cpa" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>CPA</Th>}
+                {isCol('arpu') && <Th field="arpu" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>ARPU</Th>}
+                {isCol('costPerIc') && <Th field="costPerIc" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Custo por IC</Th>}
+                {isCol('cpc') && <Th field="cpc" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>CPC</Th>}
+                {isCol('ctr') && <Th field="ctr" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>CTR</Th>}
+                {isCol('cpm') && <Th field="cpm" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>CPM</Th>}
+                {isCol('impressions') && <Th field="impressions" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Impressões</Th>}
+                {isCol('clicks') && <Th field="clicks" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Cliques</Th>}
+                {isCol('visits') && <Th field="visits" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Visitas</Th>}
+                {isCol('ic') && <Th field="ic" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>IC</Th>}
+                {isCol('icRate') && <Th field="icRate" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>% IC</Th>}
+                {isCol('id') && <Th field="id" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>ID</Th>}
+                {isCol('campaignId') && <Th field="campaignId" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>ID Campanha</Th>}
+                {isCol('adsetId') && <Th field="adsetId" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>ID Conjunto</Th>}
+                {isCol('adId') && <Th field="adId" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>ID Anúncio</Th>}
+                {isCol('verdict') && <Th field="verdict">Veredito</Th>}
               </tr>
             </thead>
             <tbody>
@@ -616,8 +686,41 @@ export default function AnunciosPage() {
   )
 }
 
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="text-right px-4 py-3 whitespace-nowrap">{children}</th>
+function Th({
+  children,
+  field,
+  sortField,
+  sortOrder,
+  onSort,
+  align = 'right',
+}: {
+  children: React.ReactNode
+  field?: string
+  sortField?: string
+  sortOrder?: 'asc' | 'desc'
+  onSort?: (field: string) => void
+  align?: 'left' | 'right'
+}) {
+  const isSorted = field && sortField === field
+  return (
+    <th
+      onClick={() => field && onSort && onSort(field)}
+      className={`px-4 py-3 whitespace-nowrap text-[11px] font-medium tracking-wide transition ${
+        align === 'left' ? 'text-left' : 'text-right'
+      } ${field ? 'cursor-pointer select-none hover:text-white' : ''} ${
+        isSorted ? 'text-brand font-semibold' : 'text-muted'
+      }`}
+    >
+      <div className={`inline-flex items-center gap-1 ${align === 'left' ? 'justify-start' : 'justify-end'}`}>
+        <span>{children}</span>
+        {field && (
+          <span className="text-[10px] opacity-75">
+            {isSorted ? (sortOrder === 'asc' ? '▲' : '▼') : <span className="opacity-30">↕</span>}
+          </span>
+        )}
+      </div>
+    </th>
+  )
 }
 
 function Td({ children, cls = '', muted }: { children: React.ReactNode; cls?: string; muted?: boolean }) {
