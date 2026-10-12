@@ -16,7 +16,7 @@ function normalizePlatform(value: unknown): Platform {
 
 /** As variacoes de URL que o gateway pede (afiliado, co-produtor, recorrencia). */
 function urlsFor(req: NextRequest, platform: string, id: string) {
-  const root = `${base(req)}/api/webhooks/${platform}?id=${id}`
+  const root = `${base(req)}/api/webhooks/${platform}/${id}`
   const urls = [{ title: 'URL padrao', url: root }]
   if (platform === 'kirvano' || platform === 'hotmart' || platform === 'cakto') {
     urls.push(
