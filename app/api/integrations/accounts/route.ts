@@ -57,14 +57,19 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** Liga/desliga a conta pra sincronizacao (igual ao "enabled" da Utmify). */
+/** Liga/desliga a conta ou define o limite de faturamento (threshold). */
 export async function PATCH(req: NextRequest) {
   try {
-    const { id, enabled } = await req.json()
+    const { id, enabled, billingThresholdCents } = await req.json()
     await initDb()
     const r = await db.execute({ sql: `SELECT dashboard_id FROM ad_accounts WHERE id = ?`, args: [id] })
     if (!r.rows.length) return NextResponse.json({ error: 'conta nao encontrada' }, { status: 404 })
-    await db.execute({ sql: `UPDATE ad_accounts SET enabled = ? WHERE id = ?`, args: [enabled ? 1 : 0, id] })
+    if (enabled !== undefined) {
+      await db.execute({ sql: `UPDATE ad_accounts SET enabled = ? WHERE id = ?`, args: [enabled ? 1 : 0, id] })
+    }
+    if (billingThresholdCents !== undefined) {
+      await db.execute({ sql: `UPDATE ad_accounts SET billing_threshold_cents = ? WHERE id = ?`, args: [Number(billingThresholdCents) || 0, id] })
+    }
     return NextResponse.json({ ok: true })
   } catch (e) {
     return errorResponse(e)

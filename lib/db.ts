@@ -325,6 +325,7 @@ export function initDb() {
       await addColumn('ad_accounts', 'is_prepay', 'INTEGER NOT NULL DEFAULT 0')
       await addColumn('ad_accounts', 'spend_cap_cents', 'INTEGER')
       await addColumn('ad_accounts', 'amount_spent_cents', 'INTEGER')
+      await addColumn('ad_accounts', 'billing_threshold_cents', 'INTEGER DEFAULT 0')
     })().catch((e) => {
       ready = null
       throw e

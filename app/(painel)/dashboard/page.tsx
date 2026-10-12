@@ -26,11 +26,28 @@ export default function DashboardPage() {
   const [selectedAccount, setSelectedAccount] = useState<string>('all')
   const [activePreset, setActivePreset] = useState<string>('Hoje')
   const [showCustomDate, setShowCustomDate] = useState(false)
+  const [editingThresholdId, setEditingThresholdId] = useState<string | null>(null)
+  const [thresholdInput, setThresholdInput] = useState<string>('')
   const dataRef = useRef<any>(null)
 
   useEffect(() => {
     dataRef.current = data
   }, [data])
+
+  const saveThreshold = async (accId: string) => {
+    const cleanStr = thresholdInput.replace(/\./g, '').replace(',', '.')
+    const numVal = parseFloat(cleanStr)
+    const cents = isNaN(numVal) ? 0 : Math.round(numVal * 100)
+    try {
+      await fetch('/api/integrations/accounts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: accId, billingThresholdCents: cents }),
+      })
+      setEditingThresholdId(null)
+      fetchSummary()
+    } catch {}
+  }
 
   const fetchSummary = () => {
     if (!dashboardId) return
@@ -409,25 +426,99 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     /* CONTA PÓS-PAGA (CARTÃO) */
-                    <div className="mt-3 pt-3 border-t border-line/40 space-y-1.5">
+                    <div className="mt-3 pt-3 border-t border-line/40 space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted">Gasto Atual a Pagar</span>
-                        <span className="text-base font-bold text-warn">
+                        <span className="text-xs text-muted">Saldo a Pagar</span>
+                        <span className="text-lg font-bold text-white">
                           {money(bal, acc.currency || currency)}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted">Limite para Pagar</span>
-                        <span className="font-medium text-white">
-                          {spendCap > 0 ? money(spendCap, acc.currency || currency) : 'Sem limite fixado'}
-                        </span>
-                      </div>
-                      {amountSpent > 0 && (
-                        <div className="flex items-center justify-between text-[11px] text-muted">
-                          <span>Total histórico gasto</span>
-                          <span>{money(amountSpent, acc.currency || currency)}</span>
+
+                      {/* LIMITE DE COBRANÇA (THRESHOLD / QUANDO O SALDO CHEGAR A) */}
+                      <div className="bg-[#122347]/60 border border-line/60 rounded-lg p-2.5 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted">Cobrar quando chegar a:</span>
+                          {editingThresholdId === acc.id ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-muted">R$</span>
+                              <input
+                                type="text"
+                                autoFocus
+                                value={thresholdInput}
+                                onChange={(e) => setThresholdInput(e.target.value)}
+                                placeholder="415,00"
+                                className="w-16 bg-[#0c1830] border border-brand text-xs text-white px-1 py-0.5 rounded focus:outline-none"
+                              />
+                              <button
+                                onClick={() => saveThreshold(acc.id)}
+                                className="text-[10px] bg-brand text-white px-1.5 py-0.5 rounded font-medium hover:bg-brand/80"
+                              >
+                                Salvar
+                              </button>
+                              <button
+                                onClick={() => setEditingThresholdId(null)}
+                                className="text-[10px] text-muted hover:text-white px-0.5"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setEditingThresholdId(acc.id)
+                                setThresholdInput(
+                                  acc.billingThresholdCents > 0
+                                    ? (acc.billingThresholdCents / 100).toFixed(2).replace('.', ',')
+                                    : ''
+                                )
+                              }}
+                              className="flex items-center gap-1 font-semibold text-good hover:underline transition-colors"
+                              title="Clique para editar o limite de cobrança"
+                            >
+                              <span>
+                                {acc.billingThresholdCents > 0
+                                  ? money(acc.billingThresholdCents, acc.currency || currency)
+                                  : 'Definir (ex: R$ 415)'}
+                              </span>
+                              <span className="text-muted text-[11px]">✏️</span>
+                            </button>
+                          )}
                         </div>
-                      )}
+
+                        {acc.billingThresholdCents > 0 && (
+                          <div className="space-y-1 pt-0.5">
+                            <div className="h-1.5 rounded-full bg-[#0c1830] overflow-hidden">
+                              <div
+                                className={`h-full transition-all duration-300 ${
+                                  (bal / acc.billingThresholdCents) >= 0.9
+                                    ? 'bg-bad'
+                                    : (bal / acc.billingThresholdCents) >= 0.7
+                                    ? 'bg-warn'
+                                    : 'bg-brand'
+                                }`}
+                                style={{
+                                  width: `${Math.min(
+                                    100,
+                                    Math.max(4, Math.round((bal / acc.billingThresholdCents) * 100))
+                                  )}%`,
+                                }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-[10px] text-muted">
+                              <span>
+                                {((bal / acc.billingThresholdCents) * 100).toFixed(1)}% atingido
+                              </span>
+                              <span>
+                                restam{' '}
+                                {money(
+                                  Math.max(0, acc.billingThresholdCents - bal),
+                                  acc.currency || currency
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

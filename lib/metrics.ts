@@ -186,6 +186,7 @@ export async function getSummary(dashboardId: string, range: Range, filters: Fil
                  COALESCE(a.is_prepay, 0) AS isPrepay,
                  COALESCE(a.spend_cap_cents, 0) AS spendCapCents,
                  COALESCE(a.amount_spent_cents, 0) AS amountSpentCents,
+                 COALESCE(a.billing_threshold_cents, 0) AS billingThresholdCents,
                  COALESCE(s.spend, 0) AS spend,
                  COALESCE(s.impressions, 0) AS impressions,
                  COALESCE(s.clicks, 0) AS clicks,

@@ -18,7 +18,8 @@
 5. **[2026-10-11] Saldo das contas Meta: pre-pago vs pos-pago**
    - Pré-pago: saldo disponível vem em `funding_source_details.display_string`. Quando <= R$ 20,00, destacar em vermelho para recarga imediata.
    - Pós-pago: campo `balance` da Graph API é o saldo devedor/gasto acumulado da fatura atual; `spend_cap` é o limite de gastos fixado.
-   Do instead: guardar `is_prepay`, `spend_cap_cents` e `amount_spent_cents` em `ad_accounts` e exibir gasto acumulado vs limite no pós-pago.
+   - Billing Threshold ("Seu saldo chegar a R$ X"): a Meta depreciou `adspaymentcycle` na Graph API pública. O threshold deve ser armazenado em `billing_threshold_cents` com edição rápida inline no dashboard.
+   Do instead: guardar `is_prepay`, `spend_cap_cents`, `amount_spent_cents` e `billing_threshold_cents` em `ad_accounts` e exibir gasto acumulado vs limite no pós-pago.
 
 ## Dashboard & Funil
 1. **[2026-10-11] Funil de Conversao Meta Ads (Cliques -> Visitas -> IC -> Vendas Inic -> Vendas Apr)**
@@ -39,12 +40,13 @@
    Suporta todas as metricas (Lance, Gasto, Vendas, Margem, CPA, ARPU, Custo por IC, CPC, CTR, CPM, Impressoes, Cliques, Visitas, IC, % IC, IDs).
    Do instead: guardar selecao de colunas no localStorage (`scaletrack_ad_columns_v2`).
 
-## Tracking & Pixel
-1. **[2026-10-11] Script unificado de rastreio**
-   O script gerado no card do Pixel ja faz tudo (captura UTMs, grava visita no banco, repassa pro checkout e dispara eventos CAPI). Nao instalar scripts duplicados.
-   Do instead: usar apenas a tag de `<script src="/t.js" ...>` gerada no Pixel.
+## Deploy & Servidores (Hostinger / Vercel)
+1. **[2026-10-11] Hostinger / Ambientes sem GLIBC 2.29 com Next.js**
+   `next.config.ts` falha com `ERR_MODULE_NOT_FOUND` e `GLIBC_2.29 not found` no bundler nativo.
+   Do instead: usar `next.config.mjs` com ES modules (`import.meta.url`) e build webpack.
 
 ## Debug rapido
 1. **Testar token direto via curl**
    Do instead: `set -a; source .env.local; set +a` e `curl graph.facebook.com/$V/me/permissions?access_token=$META_ACCESS_TOKEN`.
+
 
