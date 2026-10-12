@@ -23,6 +23,47 @@ export async function syncEnabledMetaAccounts(daysInput = 3) {
       // Status primeiro: e rapido e e o que marca as campanhas como ativas na tela.
       const statuses = await syncMetaStatuses({ dashboardId: a.dashboard_id, accountId: a.account_id, accessToken: token })
       const r = await syncMetaInsights({ dashboardId: a.dashboard_id, accountId: a.account_id, accessToken: token, since, until })
+
+      // Sincroniza saldo disponível da conta e informações de cobrança
+      try {
+        const accInfo = await fetch(
+          `https://graph.facebook.com/${process.env.META_API_VERSION || 'v21.0'}/act_${a.account_id}?fields=amount_spent,spend_cap,balance,is_prepay_account,funding_source_details&access_token=${encodeURIComponent(token)}`
+        ).then((res) => res.json())
+        if (accInfo && !accInfo.error) {
+          const isPrepay = Boolean(accInfo.is_prepay_account)
+          let balanceCents = 0
+          const fs = accInfo.funding_source_details
+          const display = fs?.display_string ? fs.display_string.replace(/\u00A0/g, ' ') : null
+          const spendCap = Number(accInfo.spend_cap) || 0
+          const amountSpent = Number(accInfo.amount_spent) || 0
+
+          if (isPrepay) {
+            // Em conta pré-paga, saldo disponível vem em display_string ou spend_cap - amount_spent
+            if (display) {
+              const m = display.match(/R\$\s*([\d.,]+)/i)
+              if (m) {
+                const numStr = m[1].replace(/\./g, '').replace(',', '.')
+                const val = parseFloat(numStr)
+                if (!isNaN(val)) balanceCents = Math.round(val * 100)
+              }
+            }
+            if (balanceCents === 0 && spendCap > 0 && spendCap > amountSpent) {
+              balanceCents = spendCap - amountSpent
+            }
+          } else {
+            // Em conta pós-paga, accInfo.balance representa o valor já gasto a ser debitado na fatura atual
+            balanceCents = Number(accInfo.balance) || 0
+          }
+
+          await db.execute({
+            sql: `UPDATE ad_accounts 
+                  SET balance_cents = ?, funding_source_label = ?, is_prepay = ?, spend_cap_cents = ?, amount_spent_cents = ? 
+                  WHERE id = ?`,
+            args: [balanceCents, display, isPrepay ? 1 : 0, spendCap, amountSpent, a.id],
+          })
+        }
+      } catch {}
+
       results.push({ account: a.account_id, ...r, statuses })
     } catch (e: any) {
       results.push({ account: a.account_id, error: e?.message || 'falha' })

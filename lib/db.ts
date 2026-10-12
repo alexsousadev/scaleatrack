@@ -319,6 +319,12 @@ export function initDb() {
       // Actions da Meta: landing_page_view (Visitas) e initiate_checkout (IC).
       await addColumn('ad_insights', 'landing_page_views', 'INTEGER NOT NULL DEFAULT 0')
       await addColumn('ad_insights', 'initiate_checkouts', 'INTEGER NOT NULL DEFAULT 0')
+      // Saldo / Dinheiro em cada conta de anúncio
+      await addColumn('ad_accounts', 'balance_cents', 'INTEGER')
+      await addColumn('ad_accounts', 'funding_source_label', 'TEXT')
+      await addColumn('ad_accounts', 'is_prepay', 'INTEGER NOT NULL DEFAULT 0')
+      await addColumn('ad_accounts', 'spend_cap_cents', 'INTEGER')
+      await addColumn('ad_accounts', 'amount_spent_cents', 'INTEGER')
     })().catch((e) => {
       ready = null
       throw e

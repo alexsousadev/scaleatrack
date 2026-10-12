@@ -15,8 +15,19 @@
 3. **[2026-10-11] Nunca usar `.catch(() => [])` nas chamadas da Graph API**
    Esconde o motivo real (permissao, rate limit). Do instead: empurrar a mensagem em `diagnostics.warnings` (ver `lib/meta.ts`).
 4. **[2026-10-11] Writes no Turso remoto: sempre em lote**
-   1 `db.execute` por linha = 1 round-trip; sync de ~640 linhas levava ~3min (vs 17s com `db.batch`).
-   Do instead: acumular `stmts` e usar `writeBatch()` em `lib/meta.ts`.
+5. **[2026-10-11] Saldo das contas Meta: pre-pago vs pos-pago**
+   - Pré-pago: saldo disponível vem em `funding_source_details.display_string`. Quando <= R$ 20,00, destacar em vermelho para recarga imediata.
+   - Pós-pago: campo `balance` da Graph API é o saldo devedor/gasto acumulado da fatura atual; `spend_cap` é o limite de gastos fixado.
+   Do instead: guardar `is_prepay`, `spend_cap_cents` e `amount_spent_cents` em `ad_accounts` e exibir gasto acumulado vs limite no pós-pago.
+
+## Dashboard & Funil
+1. **[2026-10-11] Funil de Conversao Meta Ads (Cliques -> Visitas -> IC -> Vendas Inic -> Vendas Apr)**
+   Quando o pixel ainda nao tiver registrado todos os page views/ICs de landing page externa, utilizar `link_clicks` ou `clicks * 0.85` e pedidos totais para manter taxas de drop coerentes e visiveis.
+   Do instead: consolidar `ad_insights`, `visits`, `events` e `orders` em um unico payload `funnel`.
+2. **[2026-10-11] Alerta de Saldo Baixo em Ads**
+   Contas pré-pagas com R$ 20 ou menos correm risco de pausa de veiculação na Meta.
+   Do instead: acionar badge `⚠️ Saldo Baixo` com borda e texto vermelho quando `balance_cents <= 2000`.
+
 
 ## Aba Anuncios
 1. **[2026-10-11] Campanha ativa sem gasto/venda no periodo nao aparecia**
