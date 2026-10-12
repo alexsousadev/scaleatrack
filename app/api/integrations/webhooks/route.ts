@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, initDb, newId } from '@/lib/db'
 import { errorResponse } from '@/lib/request'
+import { PLATFORMS, type Platform } from '@/lib/adapters'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const base = (req: NextRequest) => process.env.APP_URL || req.nextUrl.origin
+const platformIds = new Set(PLATFORMS.map((p) => p.id))
+
+function normalizePlatform(value: unknown): Platform {
+  const platform = String(value || 'generic').toLowerCase() as Platform
+  return platformIds.has(platform) ? platform : 'generic'
+}
 
 /** As variacoes de URL que o gateway pede (afiliado, co-produtor, recorrencia). */
 function urlsFor(req: NextRequest, platform: string, id: string) {
@@ -40,13 +47,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { dashboardId, name, platform, secret } = await req.json()
+    const normalizedPlatform = normalizePlatform(platform)
     await initDb()
     const id = newId()
     await db.execute({
       sql: `INSERT INTO webhooks (id, dashboard_id, name, platform, secret) VALUES (?,?,?,?,?)`,
-      args: [id, dashboardId, name || platform, platform, secret || null],
+      args: [id, dashboardId, name || normalizedPlatform, normalizedPlatform, secret || null],
     })
-    return NextResponse.json({ id, integrationUrls: urlsFor(req, platform, id) })
+    return NextResponse.json({ id, name: name || normalizedPlatform, platform: normalizedPlatform, integrationUrls: urlsFor(req, normalizedPlatform, id) })
   } catch (e) {
     return errorResponse(e)
   }

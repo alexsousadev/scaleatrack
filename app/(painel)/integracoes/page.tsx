@@ -490,10 +490,15 @@ function UtmsTab() {
 function WebhookApiTab({ dashboardId }: { dashboardId: string }) {
   const [tokens, setTokens] = useState<any[]>([])
   const [webhooks, setWebhooks] = useState<any[]>([])
-  const [modal, setModal] = useState(false)
+  const [tokenModal, setTokenModal] = useState(false)
+  const [webhookModal, setWebhookModal] = useState(false)
   const [created, setCreated] = useState('')
+  const [createdWebhook, setCreatedWebhook] = useState<any | null>(null)
   const [name, setName] = useState('')
   const [platform, setPlatform] = useState('API')
+  const [webhookName, setWebhookName] = useState('')
+  const [webhookPlatform, setWebhookPlatform] = useState('hotmart')
+  const [webhookSecret, setWebhookSecret] = useState('')
 
   const load = () => {
     fetch(`/api/integrations/api-tokens?dashboardId=${dashboardId}`).then((r) => r.json()).then((j) => setTokens(j.tokens || []))
@@ -505,8 +510,22 @@ function WebhookApiTab({ dashboardId }: { dashboardId: string }) {
     const res = await fetch('/api/integrations/api-tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dashboardId, name, platform }) })
     const j = await res.json()
     if (j.token) setCreated(j.token)
-    setModal(false)
+    setTokenModal(false)
     setName('')
+    load()
+  }
+
+  async function createWebhook() {
+    const res = await fetch('/api/integrations/webhooks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dashboardId, name: webhookName, platform: webhookPlatform, secret: webhookSecret }),
+    })
+    const j = await res.json()
+    if (j.integrationUrls) setCreatedWebhook(j)
+    setWebhookModal(false)
+    setWebhookName('')
+    setWebhookSecret('')
     load()
   }
 
@@ -515,21 +534,52 @@ function WebhookApiTab({ dashboardId }: { dashboardId: string }) {
     load()
   }
 
+  async function deleteWebhook(id: string) {
+    await fetch(`/api/integrations/webhooks?id=${id}`, { method: 'DELETE' })
+    load()
+  }
+
   return (
     <div className="space-y-6">
       <Panel title="Webhook API" actions={<button className="rounded-md border border-line px-3 py-1.5 text-xs font-semibold">Documentacao</button>}>
         <p className="px-6 py-6 text-sm text-muted">Cada integracao usa seu proprio token e URL. Use os tokens abaixo para integracoes avancadas, ou conecte uma plataforma para gerar URLs prontas de webhook.</p>
       </Panel>
-      <Panel title={`Tokens de API (${tokens.length}/5)`} actions={<button onClick={() => setModal(true)} className="rounded-md border border-line px-3 py-1.5 text-xs font-semibold">+ Token Padrao</button>}>
+      <Panel title={`Tokens de API (${tokens.length}/5)`} actions={<button onClick={() => setTokenModal(true)} className="rounded-md border border-line px-3 py-1.5 text-xs font-semibold">+ Token Padrao</button>}>
         {created && <div className="bg-brand/20 px-6 py-4 text-xs"><b>Copie seu token agora. Ele nao sera exibido novamente.</b><div className="mt-3 flex rounded-md bg-ink p-3"><code className="flex-1 break-all">{created}</code><CopyButton text={created} /></div></div>}
         <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr className="text-left text-[11px] uppercase text-muted"><th className="px-5 py-4">Nome</th><th>Plataforma</th><th>Token</th><th>Status</th><th>Ultimo uso</th><th>Criado em</th><th>Acoes</th></tr></thead><tbody>{tokens.map((t) => <tr key={t.id} className="border-t border-line"><td className="px-5 py-4 font-semibold">{t.name}</td><td>{t.platform}</td><td className="font-mono">{t.token}</td><td><Badge>Ativo</Badge></td><td>{t.last_used_at || '-'}</td><td>{formatDate(t.created_at)}</td><td><button onClick={() => deleteToken(t.id)} className="rounded-md border border-line px-3 py-1.5 text-xs font-semibold text-bad">Excluir</button></td></tr>)}</tbody></table></div>
       </Panel>
-      <Panel title={`Webhooks de plataforma (${webhooks.length})`}>
-        <div className="divide-y divide-line">{webhooks.length === 0 && <p className="px-6 py-8 text-center text-muted">Nenhum webhook criado.</p>}{webhooks.map((w) => <div key={w.id} className="px-6 py-5"><div className="font-semibold">{w.name} <span className="text-muted">- {w.platform}</span></div>{w.integrationUrls?.map((u: any) => <div key={u.url} className="mt-3 flex rounded-md border border-line bg-ink p-3"><code className="flex-1 break-all text-xs">{u.url}</code><CopyButton text={u.url} /></div>)}</div>)}</div>
+      <Panel title={`Webhooks de plataforma (${webhooks.length})`} actions={<button onClick={() => setWebhookModal(true)} className="rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-white">+ Novo Webhook</button>}>
+        {createdWebhook && <WebhookUrlNotice webhook={createdWebhook} />}
+        <div className="divide-y divide-line">{webhooks.length === 0 && <p className="px-6 py-8 text-center text-muted">Nenhum webhook criado.</p>}{webhooks.map((w) => <div key={w.id} className="px-6 py-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="font-semibold">{w.name} <span className="text-muted">- {platformLabel(w.platform)}</span></div><button onClick={() => deleteWebhook(w.id)} className="rounded-md border border-line px-3 py-1.5 text-xs font-semibold text-bad">Excluir</button></div>{w.integrationUrls?.map((u: any) => <div key={u.url} className="mt-3"><div className="mb-2 text-[11px] font-semibold uppercase text-muted">{u.title}</div><div className="flex rounded-md border border-line bg-ink p-3"><code className="flex-1 break-all text-xs">{u.url}</code><CopyButton text={u.url} /></div></div>)}</div>)}</div>
       </Panel>
-      {modal && <Modal title="Novo Token de API" onClose={() => setModal(false)}><Field label="NOME DO TOKEN"><input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm" placeholder="Ex: Hotmart" /></Field><Field label="PLATAFORMA"><input value={platform} onChange={(e) => setPlatform(e.target.value)} className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm" placeholder="Ex: Hotmart" /></Field><div className="flex justify-end gap-2"><button onClick={() => setModal(false)} className="rounded-md border border-line px-5 py-2 text-sm">Cancelar</button><button onClick={createToken} className="rounded-md bg-brand px-5 py-2 text-sm font-semibold text-white">Gerar Token</button></div></Modal>}
+      {tokenModal && <Modal title="Novo Token de API" onClose={() => setTokenModal(false)}><Field label="NOME DO TOKEN"><input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm" placeholder="Ex: Hotmart" /></Field><Field label="PLATAFORMA"><input value={platform} onChange={(e) => setPlatform(e.target.value)} className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm" placeholder="Ex: Hotmart" /></Field><div className="flex justify-end gap-2"><button onClick={() => setTokenModal(false)} className="rounded-md border border-line px-5 py-2 text-sm">Cancelar</button><button onClick={createToken} className="rounded-md bg-brand px-5 py-2 text-sm font-semibold text-white">Gerar Token</button></div></Modal>}
+      {webhookModal && <Modal title="Novo Webhook" onClose={() => setWebhookModal(false)}><Field label="NOME"><input value={webhookName} onChange={(e) => setWebhookName(e.target.value)} className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm" placeholder="Ex: Hotmart principal" /></Field><Field label="PLATAFORMA"><select value={webhookPlatform} onChange={(e) => setWebhookPlatform(e.target.value)} className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm"><option value="hotmart">Hotmart</option><option value="kirvano">Kirvano</option><option value="cakto">Cakto</option><option value="generic">Generico</option></select></Field><Field label="SEGREDO OPCIONAL" hint="Preencha somente se o gateway tambem enviar esse segredo no webhook."><input value={webhookSecret} onChange={(e) => setWebhookSecret(e.target.value)} className="w-full rounded-md border border-line bg-ink px-3 py-2 text-sm" placeholder="Ex: minha-chave-secreta" /></Field><div className="flex justify-end gap-2"><button onClick={() => setWebhookModal(false)} className="rounded-md border border-line px-5 py-2 text-sm">Cancelar</button><button onClick={createWebhook} className="rounded-md bg-brand px-5 py-2 text-sm font-semibold text-white">Salvar Webhook</button></div></Modal>}
     </div>
   )
+}
+
+function WebhookUrlNotice({ webhook }: { webhook: any }) {
+  const primary = webhook.integrationUrls?.[0]?.url || ''
+  return (
+    <div className="border-b border-line bg-brand/15 px-6 py-5">
+      <div className="text-sm font-semibold text-white">Pronto. Copie a URL abaixo e cole no campo Endpoint URL da {platformLabel(webhook.platform)}.</div>
+      <div className="mt-4 text-[11px] font-semibold uppercase text-muted">URL do webhook</div>
+      <div className="mt-2 flex rounded-md border border-line bg-[#030715] p-3">
+        <code className="flex-1 break-all text-xs text-white/90">{primary}</code>
+        <CopyButton text={primary} />
+      </div>
+    </div>
+  )
+}
+
+function platformLabel(platform: string) {
+  const labels: Record<string, string> = {
+    hotmart: 'Hotmart',
+    kirvano: 'Kirvano',
+    cakto: 'Cakto',
+    generic: 'Generico',
+  }
+  return labels[platform] || platform
 }
 
 function AppTab() {
