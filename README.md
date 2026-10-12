@@ -77,10 +77,19 @@ Pra zerar tudo e comecar do nada de novo: apague o `local.db`.
 1. **Script** — em Integracoes > Script, copie e cole antes do `</head>` da pagina de vendas.
 2. **Parametros de URL** — cole o template no campo "Parametros de URL" do anuncio na Meta.
 3. **Webhook** — crie em Integracoes > Webhooks e cole a URL no painel do gateway.
-4. **Meta Ads** — em Integracoes > Contas, cole um token de sistema com `ads_read` e habilite as contas.
-5. **Crons** — agende:
+4. **Pixel/CAPI** — em Integracoes > Pixel + CAPI, cadastre o ID do pixel Meta e o token CAPI do pixel.
+5. **Meta Ads** — em Integracoes > Contas, cole um token de sistema com `ads_read` e habilite as contas.
+6. **Crons** — agende:
    - `GET /api/cron/sync-meta?days=3` a cada 15-30 min (header `x-cron-secret`)
    - `GET /api/cron/flush-capi` a cada 1-5 min
+
+Variaveis obrigatorias para deploy:
+
+- `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN` para o banco.
+- `APP_URL` com a URL publica final do painel.
+- `PANEL_PASSWORD` e `PANEL_AUTH_SECRET` para proteger o painel.
+- `CRON_SECRET` com um valor forte, diferente do exemplo.
+- `META_ACCESS_TOKEN` opcional se voce preferir nao colar o token por conta no painel.
 
 ## O que ja esta pronto
 
@@ -97,15 +106,15 @@ Pra zerar tudo e comecar do nada de novo: apague o `local.db`.
 - Custo por produto e imposto, com recalculo dos pedidos ja gravados.
 - Pixel server-side (Conversions API) com fila e retry, dedupe por `event_id`,
   regra de IP (so IPv6 / com fallback / sem IP), valor por comissao ou bruto.
+- Tela de cadastro dos pixels, com ID do pixel Meta, token CAPI, codigo de teste,
+  dominio permitido e regras de InitiateCheckout, Lead e AddToCart.
 - Multi-dashboard (um por negocio ou por moeda), com fuso e moeda proprios.
 
 ## O que ainda nao esta
 
 - Google Ads, TikTok Ads e Kwai: o schema e a atribuicao ja sao multi-plataforma
   (`ad_insights.platform`), falta o cliente de API de cada uma. So a Meta sincroniza.
-- Motor de regras automatizadas (pausar anuncio por CPA/ROAS): a tabela `rules` existe,
-  o executor nao.
-- Tela de CRUD dos pixels: a API (`/api/integrations/pixels`) esta pronta, a tela nao.
+- Motor de regras automatizadas (pausar anuncio por CPA/ROAS): o executor ainda nao existe.
 
 ## Um aviso sobre os adapters
 

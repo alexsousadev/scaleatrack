@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { dashboardExists, db, initDb } from './db'
+import { db, initDb } from './db'
 import { buildRange, type Filters, type Range } from './metrics'
 
 /** Le dashboardId + periodo + filtros da querystring. */
@@ -7,10 +7,10 @@ export async function readContext(req: NextRequest): Promise<{ dashboardId: stri
   const q = req.nextUrl.searchParams
   const dashboardId = q.get('dashboardId') || ''
   if (!dashboardId) throw new Response('dashboardId ausente', { status: 400 })
-  if (!(await dashboardExists(dashboardId))) throw new Response('dashboard nao encontrado', { status: 404 })
 
   await initDb()
   const d = await db.execute({ sql: `SELECT tz_offset, currency FROM dashboards WHERE id = ?`, args: [dashboardId] })
+  if (!d.rows.length) throw new Response('dashboard nao encontrado', { status: 404 })
   const row: any = d.rows[0]
   const tzOffset = Number(row?.tz_offset ?? -3)
 

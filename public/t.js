@@ -273,6 +273,24 @@
       return r.json()
     })
     .then(function (c) {
+      if (c && c.allowedDomain) {
+        var host = location.hostname.toLowerCase()
+        var path = location.pathname.toLowerCase()
+        var ok = String(c.allowedDomain)
+          .split(/[\n,]+/)
+          .map(function (item) {
+            return item.replace(/^https?:\/\//i, '').toLowerCase().trim()
+          })
+          .filter(Boolean)
+          .some(function (allowed) {
+            var slash = allowed.indexOf('/')
+            var allowedHost = slash >= 0 ? allowed.slice(0, slash) : allowed
+            var allowedPath = slash >= 0 ? allowed.slice(slash) : ''
+            var hostOk = host === allowedHost || host.slice(-(allowedHost.length + 1)) === '.' + allowedHost
+            return hostOk && (!allowedPath || path.indexOf(allowedPath) === 0)
+          })
+        if (!ok) return
+      }
       config = c
     })
     .catch(function () {})

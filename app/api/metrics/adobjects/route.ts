@@ -9,7 +9,8 @@ export async function GET(req: NextRequest) {
   try {
     const { dashboardId, range, filters, currency } = await readContext(req)
     const level = (req.nextUrl.searchParams.get('level') || 'campaign') as 'account' | 'campaign' | 'adset' | 'ad'
-    return NextResponse.json({ currency, level, results: await getAdObjects(dashboardId, level, range, filters) })
+    const parentId = req.nextUrl.searchParams.get('parentId')
+    return NextResponse.json({ currency, level, parentId, results: await getAdObjects(dashboardId, level, range, filters, parentId) })
   } catch (e) {
     return errorResponse(e)
   }

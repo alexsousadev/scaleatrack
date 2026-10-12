@@ -20,8 +20,9 @@ export async function syncEnabledMetaAccounts(daysInput = 3) {
     try {
       const token = a.access_token || process.env.META_ACCESS_TOKEN
       if (!token) throw new Error('sem token')
-      const r = await syncMetaInsights({ dashboardId: a.dashboard_id, accountId: a.account_id, accessToken: token, since, until })
+      // Status primeiro: e rapido e e o que marca as campanhas como ativas na tela.
       const statuses = await syncMetaStatuses({ dashboardId: a.dashboard_id, accountId: a.account_id, accessToken: token })
+      const r = await syncMetaInsights({ dashboardId: a.dashboard_id, accountId: a.account_id, accessToken: token, since, until })
       results.push({ account: a.account_id, ...r, statuses })
     } catch (e: any) {
       results.push({ account: a.account_id, error: e?.message || 'falha' })

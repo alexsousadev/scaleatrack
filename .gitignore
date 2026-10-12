@@ -6,3 +6,4 @@ local.db-*
 .agents
 .codex
 META_ACCESS_TOKEN=*
+tsconfig.tsbuildinfo

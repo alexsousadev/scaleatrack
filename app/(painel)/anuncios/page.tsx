@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { money, num, ratio, usePanel, useQuery } from '../../components/ui'
 
+type LevelId = 'account' | 'campaign' | 'adset' | 'ad'
+
 const LEVELS = [
   { id: 'account', label: 'Contas', title: 'Contas' },
   { id: 'campaign', label: 'Campanhas', title: 'Campanhas' },
   { id: 'adset', label: 'Conjuntos', title: 'Conjuntos' },
   { id: 'ad', label: 'Anuncios', title: 'Anuncios' },
-]
+] satisfies { id: LevelId; label: string; title: string }[]
 
 const STATUS_OPTIONS = [
   { id: '', label: 'Qualquer' },
@@ -30,10 +32,25 @@ function verdict(r: any) {
   return { label: 'Segurar', cls: 'text-muted' }
 }
 
+function childLevel(level: LevelId): LevelId | null {
+  if (level === 'account') return 'campaign'
+  if (level === 'campaign') return 'adset'
+  if (level === 'adset') return 'ad'
+  return null
+}
+
+function budgetLabel(r: any, currency: string) {
+  const budget = Number(r.budget || 0)
+  if (budget <= 0) return '-'
+  const kind = Number(r.lifetimeBudget || 0) > 0 ? 'total' : 'dia'
+  return `${money(budget, currency)} / ${kind}`
+}
+
 export default function AnunciosPage() {
   const query = useQuery()
   const { currency } = usePanel()
-  const [level, setLevel] = useState<'account' | 'campaign' | 'adset' | 'ad'>('campaign')
+  const [level, setLevel] = useState<LevelId>('campaign')
+  const [trail, setTrail] = useState<{ level: LevelId; id: string; name: string }[]>([])
   const [status, setStatus] = useState('')
   const [sort, setSort] = useState('spend')
   const [rows, setRows] = useState<any[]>([])
@@ -43,7 +60,9 @@ export default function AnunciosPage() {
     if (!query) return
     const load = () => {
       setLoading(true)
-      fetch(`/api/metrics/adobjects?${query}&level=${level}`)
+      const parent = trail[trail.length - 1]
+      const parentQuery = parent ? `&parentId=${encodeURIComponent(parent.id)}` : ''
+      fetch(`/api/metrics/adobjects?${query}&level=${level}${parentQuery}`)
         .then((r) => r.json())
         .then((j) => setRows(j.results || []))
         .finally(() => setLoading(false))
@@ -51,7 +70,7 @@ export default function AnunciosPage() {
     load()
     window.addEventListener('scaletrack:meta-sync', load)
     return () => window.removeEventListener('scaletrack:meta-sync', load)
-  }, [query, level])
+  }, [query, level, trail])
 
   const filtered = useMemo(() => {
     const list = rows.filter((r) => {
@@ -75,6 +94,30 @@ export default function AnunciosPage() {
   }, { spend: 0, revenue: 0, profit: 0, sales: 0, pending: 0, impressions: 0, clicks: 0 }), [filtered])
 
   const current = LEVELS.find((l) => l.id === level) || LEVELS[1]
+  const parent = trail[trail.length - 1]
+
+  function goToLevel(nextLevel: LevelId) {
+    setLevel(nextLevel)
+    setTrail([])
+  }
+
+  function drill(row: any) {
+    const nextLevel = childLevel(level)
+    if (!nextLevel) return
+    setTrail([...trail, { level, id: row.id, name: row.name }])
+    setLevel(nextLevel)
+  }
+
+  function backTo(index: number) {
+    const nextTrail = trail.slice(0, index + 1)
+    setTrail(nextTrail)
+    setLevel(childLevel(nextTrail[nextTrail.length - 1].level) || 'campaign')
+  }
+
+  function resetToCampaigns() {
+    setTrail([])
+    setLevel('campaign')
+  }
 
   function exportCsv() {
     const headers = ['nome', 'status', 'gasto', 'vendas', 'pendentes', 'faturamento', 'lucro', 'roas', 'cpa', 'impressoes', 'cliques', 'ctr']
@@ -107,18 +150,36 @@ export default function AnunciosPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">{current.title}</h1>
-          <p className="text-sm text-muted mt-1">{num(filtered.length)} item(ns) no periodo</p>
+          <p className="text-sm text-muted mt-1">
+            {num(filtered.length)} item(ns) no periodo{parent ? ` em ${parent.name}` : ''}
+          </p>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-6 border-b border-line">
         {LEVELS.map((l) => (
-          <button key={l.id} onClick={() => setLevel(l.id as any)}
+          <button key={l.id} onClick={() => goToLevel(l.id)}
                   className={`pb-3 text-sm border-b-2 ${level === l.id ? 'border-brand text-white' : 'border-transparent text-muted hover:text-white'}`}>
             {l.label}
           </button>
         ))}
       </div>
+
+      {(trail.length > 0 || level !== 'campaign') && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <button onClick={resetToCampaigns} className="text-muted hover:text-white">Campanhas</button>
+          {trail.map((item, index) => (
+            <span key={`${item.level}:${item.id}`} className="flex items-center gap-2">
+              <span className="text-muted">/</span>
+              <button onClick={() => backTo(index)} className="text-muted hover:text-white max-w-[260px] truncate">
+                {item.name}
+              </button>
+            </span>
+          ))}
+          <span className="text-muted">/</span>
+          <span className="text-white">{current.title}</span>
+        </div>
+      )}
 
       <div className="bg-panel border border-line rounded-xl p-4 flex flex-wrap items-end gap-3">
         <label className="space-y-1">
@@ -180,7 +241,11 @@ export default function AnunciosPage() {
               {filtered.map((r) => {
                 const v = verdict(r)
                 return (
-                  <tr key={r.id} className="border-b border-line hover:bg-ink/35">
+                  <tr
+                    key={r.id}
+                    onClick={() => drill(r)}
+                    className={`border-b border-line hover:bg-ink/35 ${childLevel(level) ? 'cursor-pointer' : ''}`}
+                  >
                     <td className="px-4 py-4">
                       <span className={`block h-3 w-3 rounded-full ${String(r.status).includes('ACTIVE') ? 'bg-good' : r.status ? 'bg-muted' : 'bg-line'}`} />
                     </td>
@@ -188,7 +253,7 @@ export default function AnunciosPage() {
                       <div className="font-semibold truncate max-w-[260px]" title={r.name}>{r.name}</div>
                       <div className="text-xs text-muted">{r.status || 'N/A'}</div>
                     </td>
-                    <Td muted>{level === 'campaign' ? 'N/A' : 'Orc. no conjunto'}</Td>
+                    <Td muted={Number(r.budget || 0) <= 0}>{budgetLabel(r, currency)}</Td>
                     <Td>{money(r.spend, currency)}</Td>
                     <Td>{num(r.approvedOrders)}</Td>
                     <Td>{num(r.pendingOrders)}</Td>

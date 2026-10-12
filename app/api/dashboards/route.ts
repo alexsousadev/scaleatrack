@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db, ensureDefaultDashboard, initDb, newId } from '@/lib/db'
+import { db, initDb, newId } from '@/lib/db'
 import { errorResponse } from '@/lib/request'
 
 export const runtime = 'nodejs'
@@ -7,8 +7,13 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    await ensureDefaultDashboard()
-    const r = await db.execute(`SELECT * FROM dashboards ORDER BY created_at`)
+    await initDb()
+    let r = await db.execute(`SELECT * FROM dashboards ORDER BY created_at`)
+    if (!r.rows.length) {
+      const id = newId()
+      await db.execute({ sql: `INSERT INTO dashboards (id, name) VALUES (?, ?)`, args: [id, 'Meu dashboard'] })
+      r = await db.execute(`SELECT * FROM dashboards ORDER BY created_at`)
+    }
     return NextResponse.json({ dashboards: r.rows })
   } catch (e) {
     return errorResponse(e)

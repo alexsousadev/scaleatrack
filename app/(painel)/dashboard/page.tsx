@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Card, money, num, pct, ratio, usePanel, useQuery } from '../../components/ui'
 
@@ -10,25 +10,41 @@ export default function DashboardPage() {
   const { currency } = usePanel()
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const dataRef = useRef<any>(null)
+
+  useEffect(() => {
+    dataRef.current = data
+  }, [data])
 
   useEffect(() => {
     if (!query) return
     let alive = true
+    const controller = new AbortController()
     const load = () => {
-      setLoading(true)
-      fetch(`/api/metrics/summary?${query}`)
+      const hasData = Boolean(dataRef.current)
+      setRefreshing(hasData)
+      setLoading(!hasData)
+      fetch(`/api/metrics/summary?${query}`, { signal: controller.signal })
         .then((r) => r.json())
         .then((j) => {
           if (alive) setData(j)
         })
+        .catch((e) => {
+          if (alive && e?.name !== 'AbortError') setData({ error: e?.message || 'Falha ao carregar dashboard.' })
+        })
         .finally(() => {
-          if (alive) setLoading(false)
+          if (alive) {
+            setLoading(false)
+            setRefreshing(false)
+          }
         })
     }
     load()
     window.addEventListener('scaletrack:meta-sync', load)
     return () => {
       alive = false
+      controller.abort()
       window.removeEventListener('scaletrack:meta-sync', load)
     }
   }, [query])
@@ -41,6 +57,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {refreshing && <p className="text-xs text-muted">Atualizando dados...</p>}
       {vazio && <PrimeiroUso />}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card label="Faturamento liquido" value={money(data.revenue, currency)} hint={`bruto ${money(data.grossRevenue, currency)}`} />

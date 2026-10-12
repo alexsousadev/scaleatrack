@@ -65,7 +65,7 @@ export async function getSummary(dashboardId: string, range: Range, filters: Fil
   const args: any[] = [dashboardId, range.fromUtc, range.toUtc]
   const where = `o.dashboard_id = ? AND o.created_at BETWEEN ? AND ?` + filterSql(filters, args)
 
-  const totals = await db.execute({
+  const totalsQuery = db.execute({
     sql: `SELECT
             COUNT(*)                                                    AS total,
             SUM(CASE WHEN ${APPROVED} THEN 1 ELSE 0 END)                AS approved,
@@ -84,7 +84,6 @@ export async function getSummary(dashboardId: string, range: Range, filters: Fil
           FROM orders o WHERE ${where}`,
     args,
   })
-  const t: any = totals.rows[0] ?? {}
   const n = (v: any) => Number(v || 0)
 
   const spendArgs: any[] = [dashboardId, range.fromLocal, range.toLocal]
@@ -97,31 +96,19 @@ export async function getSummary(dashboardId: string, range: Range, filters: Fil
     spendWhere += ` AND platform = ?`
     spendArgs.push(filters.trafficSource)
   }
-  const spendRow = await db.execute({
+  const spendQuery = db.execute({
     sql: `SELECT SUM(spend_cents) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks
           FROM ad_insights WHERE ${spendWhere}`,
     args: spendArgs,
   })
-  const s: any = spendRow.rows[0] ?? {}
 
-  const expenses = await db.execute({
+  const expensesQuery = db.execute({
     sql: `SELECT SUM(amount_cents) AS total FROM expenses WHERE dashboard_id = ? AND (date IS NULL OR date BETWEEN ? AND ?)`,
     args: [dashboardId, range.fromLocal, range.toLocal],
   })
 
-  const netRevenue = n(t.net_revenue)
-  const spend = n(s.spend)
-  const cost = n(t.cost)
-  const tax = n(t.tax)
-  const otherExpenses = n((expenses.rows[0] as any)?.total)
-  const profit = netRevenue - spend - cost - tax - otherExpenses
-
-  const approved = n(t.approved)
-  const pending = n(t.pending)
-  const total = n(t.total)
-
   // Series por hora e por dia, ja no fuso do dashboard.
-  const byDay = await db.execute({
+  const byDayQuery = db.execute({
     sql: `SELECT substr(o.created_at, 1, 10) AS day,
                  SUM(CASE WHEN ${APPROVED} THEN o.net_cents ELSE 0 END) AS revenue,
                  SUM(CASE WHEN ${APPROVED} THEN 1 ELSE 0 END)           AS sales
@@ -129,7 +116,7 @@ export async function getSummary(dashboardId: string, range: Range, filters: Fil
     args: [...args],
   })
 
-  const byHour = await db.execute({
+  const byHourQuery = db.execute({
     sql: `SELECT CAST(substr(o.created_at, 12, 2) AS INTEGER) AS hour,
                  SUM(CASE WHEN ${APPROVED} THEN o.net_cents ELSE 0 END) AS revenue,
                  SUM(CASE WHEN ${APPROVED} THEN 1 ELSE 0 END)           AS sales
@@ -137,7 +124,7 @@ export async function getSummary(dashboardId: string, range: Range, filters: Fil
     args: [...args],
   })
 
-  const byProduct = await db.execute({
+  const byProductQuery = db.execute({
     sql: `SELECT i.product_name AS name,
                  COUNT(DISTINCT o.id)                                     AS sales,
                  SUM(CASE WHEN ${APPROVED} THEN o.net_cents ELSE 0 END)   AS revenue
@@ -147,7 +134,7 @@ export async function getSummary(dashboardId: string, range: Range, filters: Fil
     args: [...args],
   })
 
-  const byPaymentMethod = await db.execute({
+  const byPaymentMethodQuery = db.execute({
     sql: `SELECT COALESCE(o.payment_method, 'outro') AS method,
                  SUM(CASE WHEN ${APPROVED} THEN 1 ELSE 0 END) AS sales,
                  SUM(CASE WHEN ${APPROVED} THEN o.net_cents ELSE 0 END) AS revenue
@@ -155,7 +142,7 @@ export async function getSummary(dashboardId: string, range: Range, filters: Fil
     args: [...args],
   })
 
-  const bySource = await db.execute({
+  const bySourceQuery = db.execute({
     sql: `SELECT COALESCE(o.traffic_source, 'organic') AS source,
                  COUNT(*) AS orders,
                  SUM(CASE WHEN ${APPROVED} THEN o.net_cents ELSE 0 END) AS revenue
@@ -163,12 +150,12 @@ export async function getSummary(dashboardId: string, range: Range, filters: Fil
     args: [...args],
   })
 
-  const untracked = await db.execute({
+  const untrackedQuery = db.execute({
     sql: `SELECT COUNT(*) AS c FROM orders o WHERE ${where} AND ${APPROVED} AND o.ad_id IS NULL AND o.campaign_id IS NULL`,
     args: [...args],
   })
 
-  const byAdAccount = await db.execute({
+  const byAdAccountQuery = db.execute({
     sql: `SELECT a.id,
                  a.platform,
                  a.account_id AS accountId,
@@ -196,6 +183,43 @@ export async function getSummary(dashboardId: string, range: Range, filters: Fil
           ORDER BY spend DESC, name`,
     args: [dashboardId, range.fromLocal, range.toLocal, dashboardId],
   })
+
+  const [
+    totals,
+    spendRow,
+    expenses,
+    byDay,
+    byHour,
+    byProduct,
+    byPaymentMethod,
+    bySource,
+    untracked,
+    byAdAccount,
+  ] = await Promise.all([
+    totalsQuery,
+    spendQuery,
+    expensesQuery,
+    byDayQuery,
+    byHourQuery,
+    byProductQuery,
+    byPaymentMethodQuery,
+    bySourceQuery,
+    untrackedQuery,
+    byAdAccountQuery,
+  ])
+
+  const t: any = totals.rows[0] ?? {}
+  const s: any = spendRow.rows[0] ?? {}
+  const netRevenue = n(t.net_revenue)
+  const spend = n(s.spend)
+  const cost = n(t.cost)
+  const tax = n(t.tax)
+  const otherExpenses = n((expenses.rows[0] as any)?.total)
+  const profit = netRevenue - spend - cost - tax - otherExpenses
+
+  const approved = n(t.approved)
+  const pending = n(t.pending)
+  const total = n(t.total)
 
   return {
     revenue: netRevenue,
@@ -296,12 +320,24 @@ export async function getByUtm(dashboardId: string, groupBy: string, range: Rang
 }
 
 /** Tabela da aba de anuncios: hierarquia conta > campanha > conjunto > anuncio. */
-export async function getAdObjects(dashboardId: string, level: 'account' | 'campaign' | 'adset' | 'ad', range: Range, filters: Filters = {}) {
+export async function getAdObjects(
+  dashboardId: string,
+  level: 'account' | 'campaign' | 'adset' | 'ad',
+  range: Range,
+  filters: Filters = {},
+  parentId?: string | null,
+) {
   await initDb()
+  const n = (v: any) => Number(v || 0)
   const col = { account: 'account_id', campaign: 'campaign_id', adset: 'adset_id', ad: 'ad_id' }[level]
+  const parentCol = { account: null, campaign: 'account_id', adset: 'campaign_id', ad: 'adset_id' }[level]
 
   const args: any[] = [dashboardId, range.fromUtc, range.toUtc]
-  const where = `o.dashboard_id = ? AND o.created_at BETWEEN ? AND ?` + filterSql(filters, args)
+  let where = `o.dashboard_id = ? AND o.created_at BETWEEN ? AND ?` + filterSql(filters, args)
+  if (parentId && parentCol) {
+    where += ` AND o.${parentCol} = ?`
+    args.push(parentId)
+  }
 
   const salesRows = await db.execute({
     sql: `SELECT o.${col} AS object_id,
@@ -319,25 +355,45 @@ export async function getAdObjects(dashboardId: string, level: 'account' | 'camp
   const salesBy = new Map<string, any>()
   for (const r of salesRows.rows as any[]) salesBy.set(String(r.object_id), r)
 
+  const spendArgs: any[] = [dashboardId, range.fromLocal, range.toLocal]
+  let spendWhere = `dashboard_id = ? AND date BETWEEN ? AND ? AND ${col} IS NOT NULL`
+  if (parentId && parentCol) {
+    spendWhere += ` AND ${parentCol} = ?`
+    spendArgs.push(parentId)
+  }
   const spendRows = await db.execute({
     sql: `SELECT ${col} AS object_id, SUM(spend_cents) AS spend, SUM(impressions) AS impressions,
                  SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks
-          FROM ad_insights WHERE dashboard_id = ? AND date BETWEEN ? AND ? AND ${col} IS NOT NULL
+          FROM ad_insights WHERE ${spendWhere}
           GROUP BY object_id`,
-    args: [dashboardId, range.fromLocal, range.toLocal],
+    args: spendArgs,
   })
 
+  const namesArgs: any[] = [dashboardId, level]
+  let namesWhere = `dashboard_id = ? AND level = ?`
+  if (parentId && parentCol) {
+    namesWhere += ` AND ${parentCol} = ?`
+    namesArgs.push(parentId)
+  }
   const names = await db.execute({
-    sql: `SELECT object_id, name, status, effective_status, account_id, campaign_id, adset_id
-          FROM ad_objects WHERE dashboard_id = ? AND level = ?`,
-    args: [dashboardId, level],
+    sql: `SELECT object_id, name, status, effective_status, account_id, campaign_id, adset_id,
+                 budget_cents, daily_budget_cents, lifetime_budget_cents, budget_remaining_cents,
+                 (SELECT a.enabled FROM ad_accounts a
+                   WHERE a.dashboard_id = ad_objects.dashboard_id AND a.account_id = ad_objects.account_id
+                   LIMIT 1) AS account_enabled
+          FROM ad_objects WHERE ${namesWhere}`,
+    args: namesArgs,
   })
   const nameBy = new Map<string, any>()
   for (const r of names.rows as any[]) nameBy.set(String(r.object_id), r)
 
+  // Objetos ativos entram mesmo sem gasto/venda no periodo (campanha recem-ligada, sync atrasado).
+  const isActive = (r: any) =>
+    Number(r.account_enabled) === 1 && String(r.effective_status ?? r.status ?? '').toUpperCase() === 'ACTIVE'
   const ids = new Set<string>([
     ...Array.from(salesBy.keys()),
     ...(spendRows.rows as any[]).map((r) => String(r.object_id)),
+    ...(names.rows as any[]).filter(isActive).map((r) => String(r.object_id)),
   ])
   const spendBy = new Map<string, any>()
   for (const r of spendRows.rows as any[]) spendBy.set(String(r.object_id), r)
@@ -353,6 +409,10 @@ export async function getAdObjects(dashboardId: string, level: 'account' | 'camp
         accountId: meta?.account_id ?? null,
         campaignId: meta?.campaign_id ?? null,
         adsetId: meta?.adset_id ?? null,
+        budget: n(meta?.budget_cents),
+        dailyBudget: n(meta?.daily_budget_cents),
+        lifetimeBudget: n(meta?.lifetime_budget_cents),
+        budgetRemaining: n(meta?.budget_remaining_cents),
         ...decorate(salesBy.get(id) ?? {}, spendBy.get(id)),
       }
     })

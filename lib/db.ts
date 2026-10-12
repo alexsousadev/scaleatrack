@@ -81,6 +81,8 @@ const SCHEMA = [
     UNIQUE (dashboard_id, platform, external_id)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_orders_dash_date ON orders (dashboard_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_orders_dash_source_date ON orders (dashboard_id, traffic_source, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_orders_dash_account_date ON orders (dashboard_id, account_id, created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_orders_ad ON orders (dashboard_id, ad_id)`,
   `CREATE INDEX IF NOT EXISTS idx_orders_campaign ON orders (dashboard_id, campaign_id)`,
 
@@ -117,6 +119,7 @@ const SCHEMA = [
     date         TEXT,
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  `CREATE INDEX IF NOT EXISTS idx_expenses_dash_date ON expenses (dashboard_id, date)`,
 
   /* ---------- Contas de anuncio e metricas ---------- */
   `CREATE TABLE IF NOT EXISTS ad_accounts (
@@ -125,9 +128,12 @@ const SCHEMA = [
     platform     TEXT NOT NULL,             -- meta|google|tiktok|kwai
     profile_id   TEXT,
     profile_name TEXT,
+    business_id   TEXT,
+    business_name TEXT,
     account_id   TEXT NOT NULL,             -- sem o prefixo act_
     name         TEXT,
     currency     TEXT NOT NULL DEFAULT 'BRL',
+    account_status INTEGER,
     access_token TEXT,
     enabled      INTEGER NOT NULL DEFAULT 1,
     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
@@ -146,6 +152,10 @@ const SCHEMA = [
     name         TEXT NOT NULL,
     status       TEXT,
     effective_status TEXT,
+    budget_cents INTEGER,
+    daily_budget_cents INTEGER,
+    lifetime_budget_cents INTEGER,
+    budget_remaining_cents INTEGER,
     updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (dashboard_id, platform, level, object_id)
   )`,
@@ -167,6 +177,7 @@ const SCHEMA = [
     PRIMARY KEY (dashboard_id, platform, ad_id, date)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_insights_dash_date ON ad_insights (dashboard_id, date)`,
+  `CREATE INDEX IF NOT EXISTS idx_insights_dash_account_date ON ad_insights (dashboard_id, account_id, date)`,
 
   /* ---------- Tracking (script no site) ---------- */
   `CREATE TABLE IF NOT EXISTS visits (
@@ -221,6 +232,17 @@ const SCHEMA = [
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
 
+  `CREATE TABLE IF NOT EXISTS api_tokens (
+    id           TEXT PRIMARY KEY,
+    dashboard_id TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    platform     TEXT NOT NULL DEFAULT 'API',
+    token        TEXT NOT NULL,
+    enabled      INTEGER NOT NULL DEFAULT 1,
+    last_used_at TEXT,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
   `CREATE TABLE IF NOT EXISTS pixels (
     id           TEXT PRIMARY KEY,
     dashboard_id TEXT NOT NULL,
@@ -269,10 +291,28 @@ const SCHEMA = [
 
 let ready: Promise<void> | null = null
 
+async function addColumn(table: string, column: string, type: string) {
+  await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`).catch((e: any) => {
+    const message = String(e?.message || '').toLowerCase()
+    if (!message.includes('duplicate column')) throw e
+  })
+}
+
 export function initDb() {
   if (!ready) {
     ready = (async () => {
-      for (const sql of SCHEMA) await db.execute(sql)
+      try {
+        await db.batch(SCHEMA.map((sql) => ({ sql, args: [] })), 'write')
+      } catch {
+        for (const sql of SCHEMA) await db.execute(sql)
+      }
+      await addColumn('ad_objects', 'budget_cents', 'INTEGER')
+      await addColumn('ad_objects', 'daily_budget_cents', 'INTEGER')
+      await addColumn('ad_objects', 'lifetime_budget_cents', 'INTEGER')
+      await addColumn('ad_objects', 'budget_remaining_cents', 'INTEGER')
+      await addColumn('ad_accounts', 'business_id', 'TEXT')
+      await addColumn('ad_accounts', 'business_name', 'TEXT')
+      await addColumn('ad_accounts', 'account_status', 'INTEGER')
     })().catch((e) => {
       ready = null
       throw e
