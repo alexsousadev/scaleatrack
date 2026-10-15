@@ -28,6 +28,17 @@ async function readWebhookPayload(req: NextRequest): Promise<WebhookPayload> {
 
 async function findWebhook(platform: string, webhookId: string) {
   await initDb()
+  if (platform === 'generic' && webhookId.startsWith('lt_')) {
+    const result = await db.execute({
+      sql: `SELECT id, dashboard_id, enabled FROM api_tokens WHERE token = ?`,
+      args: [webhookId],
+    })
+    const token: any = result.rows[0]
+    if (!token || !token.enabled) {
+      return { response: NextResponse.json({ ok: false, error: 'URL invalida' }, { status: 404 }) }
+    }
+    return { hook: { ...token, platform: 'generic', secret: null, apiTokenId: token.id } }
+  }
   const hook = await db.execute({ sql: `SELECT * FROM webhooks WHERE id = ?`, args: [webhookId] })
   const h: any = hook.rows[0]
 
@@ -59,6 +70,10 @@ export async function handleWebhookPost(req: NextRequest, platform: string, webh
   if (h.secret) {
     const got = req.headers.get('x-webhook-secret') || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || payload?.secret
     if (got !== h.secret) return NextResponse.json({ ok: false, error: 'segredo invalido' }, { status: 401 })
+  }
+
+  if (h.apiTokenId) {
+    await db.execute({ sql: `UPDATE api_tokens SET last_used_at = datetime('now') WHERE id = ?`, args: [h.apiTokenId] })
   }
 
   const order = normalize(platform, payload)

@@ -482,12 +482,6 @@ export default function AnunciosPage() {
           Personalizar colunas
         </button>
 
-        <button
-          onClick={() => window.dispatchEvent(new Event('scaletrack:meta-sync'))}
-          className="text-xs px-3 py-2 rounded-lg border border-line hover:border-brand"
-        >
-          Atualizar
-        </button>
         <button onClick={exportCsv} className="text-xs px-3 py-2 rounded-lg border border-line hover:border-brand">
           Exportar
         </button>
@@ -497,7 +491,7 @@ export default function AnunciosPage() {
         <p className="text-muted">Carregando...</p>
       ) : filtered.length === 0 ? (
         <div className="border border-line rounded-xl p-8 text-center text-muted">
-          Sem dados. Conecte uma conta de anuncios, habilite a conta e clique em Sincronizar Meta.
+          Sem dados. Conecte uma conta de anuncios, habilite a conta e clique em Atualizar contas no cabeçalho.
         </div>
       ) : (
         <div className="border border-line rounded-xl overflow-x-auto bg-panel">

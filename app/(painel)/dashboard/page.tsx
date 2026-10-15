@@ -22,7 +22,6 @@ export default function DashboardPage() {
   const { dashboardId, from, to, setRange, currency } = usePanel()
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<string>('all')
   const [activePreset, setActivePreset] = useState<string>('Hoje')
   const [showCustomDate, setShowCustomDate] = useState(false)
@@ -52,7 +51,6 @@ export default function DashboardPage() {
   const fetchSummary = () => {
     if (!dashboardId) return
     const hasData = Boolean(dataRef.current)
-    setRefreshing(hasData)
     if (!hasData) setLoading(true)
 
     let url = `/api/metrics/summary?dashboardId=${dashboardId}&from=${from}&to=${to}`
@@ -70,7 +68,6 @@ export default function DashboardPage() {
       })
       .finally(() => {
         setLoading(false)
-        setRefreshing(false)
       })
   }
 
@@ -216,7 +213,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Seletor de Contas */}
           <select
             value={selectedAccount}
@@ -230,23 +227,6 @@ export default function DashboardPage() {
               </option>
             ))}
           </select>
-
-          {/* Botão Atualizar */}
-          <button
-            onClick={fetchSummary}
-            disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-[#0d1c3a] hover:bg-line/40 text-xs font-medium text-white transition-colors disabled:opacity-50"
-          >
-            <svg
-              className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-brand' : 'text-muted'}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>{refreshing ? 'Atualizando...' : 'Atualizar'}</span>
-          </button>
 
           {/* Botão Exportar */}
           <button

@@ -1,13 +1,13 @@
 import { db, initDb } from './db'
 import { syncMetaInsights, syncMetaStatuses } from './meta'
 
-export async function syncEnabledMetaAccounts(daysInput = 3) {
+export async function syncEnabledMetaAccounts(daysInput = 3, dashboardId?: string) {
   await initDb()
   const days = Math.min(Math.max(Number(daysInput) || 3, 1), 90)
   const accounts = await db.execute({
     sql: `SELECT a.*, d.tz_offset FROM ad_accounts a JOIN dashboards d ON d.id = a.dashboard_id
-          WHERE a.enabled = 1 AND a.platform = 'meta'`,
-    args: [],
+          WHERE a.enabled = 1 AND a.platform = 'meta'${dashboardId ? ' AND a.dashboard_id = ?' : ''}`,
+    args: dashboardId ? [dashboardId] : [],
   })
 
   const results: any[] = []
@@ -20,15 +20,13 @@ export async function syncEnabledMetaAccounts(daysInput = 3) {
     try {
       const token = a.access_token || process.env.META_ACCESS_TOKEN
       if (!token) throw new Error('sem token')
-      // Status primeiro: e rapido e e o que marca as campanhas como ativas na tela.
-      const statuses = await syncMetaStatuses({ dashboardId: a.dashboard_id, accountId: a.account_id, accessToken: token })
-      const r = await syncMetaInsights({ dashboardId: a.dashboard_id, accountId: a.account_id, accessToken: token, since, until })
-
       // Sincroniza saldo disponível da conta e informações de cobrança
+      let balanceError: string | undefined
       try {
         const accInfo = await fetch(
-          `https://graph.facebook.com/${process.env.META_API_VERSION || 'v21.0'}/act_${a.account_id}?fields=amount_spent,spend_cap,balance,is_prepay_account,funding_source_details&access_token=${encodeURIComponent(token)}`
+          `https://graph.facebook.com/${process.env.META_API_VERSION || 'v21.0'}/act_${a.account_id}?fields=amount_spent,spend_cap,balance,is_prepay_account,funding_source_details&access_token=${encodeURIComponent(token)}`, { cache: 'no-store', signal: AbortSignal.timeout(30000) }
         ).then((res) => res.json())
+        if (accInfo.error) throw new Error(accInfo.error.message || 'Falha ao atualizar saldo na Meta')
         if (accInfo && !accInfo.error) {
           const isPrepay = Boolean(accInfo.is_prepay_account)
           let balanceCents = 0
@@ -62,13 +60,19 @@ export async function syncEnabledMetaAccounts(daysInput = 3) {
             args: [balanceCents, display, isPrepay ? 1 : 0, spendCap, amountSpent, a.id],
           })
         }
-      } catch {}
+      } catch (e: any) {
+        balanceError = e?.message || 'Falha ao atualizar saldo'
+      }
 
-      results.push({ account: a.account_id, ...r, statuses })
+      // Status primeiro: e rapido e e o que marca as campanhas como ativas na tela.
+      const statuses = await syncMetaStatuses({ dashboardId: a.dashboard_id, accountId: a.account_id, accessToken: token })
+      const r = await syncMetaInsights({ dashboardId: a.dashboard_id, accountId: a.account_id, accessToken: token, since, until })
+
+      results.push({ account: a.account_id, ...r, statuses, balanceError })
     } catch (e: any) {
       results.push({ account: a.account_id, error: e?.message || 'falha' })
     }
   }
 
-  return { ok: true, accounts: accounts.rows.length, results }
+  return { ok: !results.some((r) => r.error || r.balanceError), accounts: accounts.rows.length, results }
 }

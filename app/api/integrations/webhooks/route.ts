@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, initDb, newId } from '@/lib/db'
+import { integrationUrl } from '@/lib/integration-url'
 import { errorResponse } from '@/lib/request'
 import { PLATFORMS, type Platform } from '@/lib/adapters'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const base = (req: NextRequest) => process.env.APP_URL || req.nextUrl.origin
 const platformIds = new Set(PLATFORMS.map((p) => p.id))
 
 function normalizePlatform(value: unknown): Platform {
@@ -16,13 +16,13 @@ function normalizePlatform(value: unknown): Platform {
 
 /** As variacoes de URL que o gateway pede (afiliado, co-produtor, recorrencia). */
 function urlsFor(req: NextRequest, platform: string, id: string) {
-  const root = `${base(req)}/api/webhooks/${platform}/${id}`
+  const root = integrationUrl(req, platform, id)
   const urls = [{ title: 'URL padrao', url: root }]
   if (platform === 'kirvano' || platform === 'hotmart' || platform === 'cakto') {
     urls.push(
-      { title: 'URL para afiliados', url: `${root}&saleType=affiliate` },
-      { title: 'URL para co-produtores', url: `${root}&saleType=co-producer` },
-      { title: 'URL ignorando recorrencia', url: `${root}&ignoreRecurrence=true` }
+      { title: 'URL para afiliados', url: `${root}?saleType=affiliate` },
+      { title: 'URL para co-produtores', url: `${root}?saleType=co-producer` },
+      { title: 'URL ignorando recorrencia', url: `${root}?ignoreRecurrence=true` }
     )
   }
   return urls

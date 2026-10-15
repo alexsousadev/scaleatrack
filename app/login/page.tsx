@@ -18,19 +18,30 @@ export default function LoginPage() {
     setLoading(true)
 
     const next = new URLSearchParams(window.location.search).get('next') || '/dashboard'
-    const res = await fetch('/api/auth/login', {
+    try {
+      const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
     })
 
-    setLoading(false)
-    if (!res.ok) {
-      setError('Senha incorreta.')
-      return
-    }
+      if (!res.ok) {
+        setError(res.status === 401
+          ? 'Senha incorreta.'
+          : res.status === 429
+            ? 'Muitas tentativas. Aguarde 15 minutos e tente novamente.'
+            : res.status === 503
+              ? 'A senha do painel não está configurada no servidor.'
+              : 'Não foi possível entrar. Tente novamente.')
+        return
+      }
 
-    window.location.href = safeRedirectPath(next)
+      window.location.href = safeRedirectPath(next)
+    } catch {
+      setError('Não foi possível conectar ao servidor. Tente novamente.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
