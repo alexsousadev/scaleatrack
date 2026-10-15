@@ -1,5 +1,7 @@
 'use client'
 
+import MetricGuide from '../../components/metric-guide'
+import { matchesMetricFilter, metricClass, metricValue, type MetricFilter } from '../../../lib/metric-thresholds'
 import { useEffect, useMemo, useState } from 'react'
 import { money, num, ratio, usePanel, useQuery } from '../../components/ui'
 
@@ -34,6 +36,8 @@ type ColumnKey =
   | 'costPerIc'
   | 'cpc'
   | 'ctr'
+  | 'connect'
+  | 'conversion'
   | 'cpm'
   | 'impressions'
   | 'clicks'
@@ -71,7 +75,9 @@ const ALL_COLUMNS: ColumnDef[] = [
   { key: 'clicks', label: 'Cliques', defaultVisible: true },
   { key: 'visits', label: 'Visitas', defaultVisible: true },
   { key: 'ic', label: 'IC', defaultVisible: false },
-  { key: 'icRate', label: '% IC', defaultVisible: false },
+  { key: 'connect', label: 'Connect', defaultVisible: false },
+  { key: 'conversion', label: 'Conv.', defaultVisible: false },
+  { key: 'icRate', label: 'IC.Check', defaultVisible: false },
   { key: 'id', label: 'ID', defaultVisible: false },
   { key: 'campaignId', label: 'ID Campanha', defaultVisible: false },
   { key: 'adsetId', label: 'ID Conjunto', defaultVisible: false },
@@ -144,6 +150,7 @@ export default function AnunciosPage() {
   const [trail, setTrail] = useState<{ level: LevelId; id: string; name: string }[]>([])
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
+  const [metricFilter, setMetricFilter] = useState<MetricFilter>({ metric: '', band: '' })
   const [sortField, setSortField] = useState<string>('spend')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [rows, setRows] = useState<any[]>([])
@@ -177,7 +184,7 @@ export default function AnunciosPage() {
   }, [query, level, trail])
 
   const filtered = useMemo(() => {
-    let list = rows.filter((r) => {
+    let list = rows.map((r) => ({ ...r, connect: metricValue(r, 'connect'), conversion: metricValue(r, 'conversion'), icRate: metricValue(r, 'icRate') })).filter((r) => matchesMetricFilter(r, metricFilter)).filter((r) => {
       if (status === 'red') return r.profit < 0 || (r.spend > 0 && r.approvedOrders === 0)
       if (status === 'sales') return r.approvedOrders > 0
       if (status) return String(r.status || '').toUpperCase().includes(status)
@@ -215,7 +222,7 @@ export default function AnunciosPage() {
 
       return sortOrder === 'asc' ? va - vb : vb - va
     })
-  }, [rows, status, search, sortField, sortOrder])
+  }, [rows, status, search, sortField, sortOrder, metricFilter])
 
   function handleSort(field: string) {
     if (sortField === field) {
@@ -346,8 +353,10 @@ export default function AnunciosPage() {
           case 'ic':
             line.push(r.ic || 0)
             break
+          case 'connect':
+          case 'conversion':
           case 'icRate':
-            line.push(r.icRate == null ? '' : (r.icRate * 100).toFixed(2))
+            line.push(r[k] == null ? '' : (r[k] * 100).toFixed(2))
             break
           case 'id':
             line.push(r.id || '')
@@ -487,6 +496,12 @@ export default function AnunciosPage() {
         </button>
       </div>
 
+      <MetricGuide onApply={(filter) => {
+        setMetricFilter(filter)
+        setVisibleColumns((cols) => Array.from(new Set([...cols, 'ctr', 'cpc', 'connect', 'icRate', 'conversion', 'roas'])) as ColumnKey[])
+      }} />
+      {metricFilter.band && <p role="status" className="text-xs text-muted">{filtered.length} de {rows.length} linhas após aplicar os filtros.</p>}
+
       {loading ? (
         <p className="text-muted">Carregando...</p>
       ) : filtered.length === 0 ? (
@@ -520,7 +535,9 @@ export default function AnunciosPage() {
                 {isCol('clicks') && <Th field="clicks" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Cliques</Th>}
                 {isCol('visits') && <Th field="visits" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Visitas</Th>}
                 {isCol('ic') && <Th field="ic" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>IC</Th>}
-                {isCol('icRate') && <Th field="icRate" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>% IC</Th>}
+                {isCol('connect') && <Th field="connect" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Connect</Th>}
+                {isCol('conversion') && <Th field="conversion" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>Conv.</Th>}
+                {isCol('icRate') && <Th field="icRate" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>IC.Check</Th>}
                 {isCol('id') && <Th field="id" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>ID</Th>}
                 {isCol('campaignId') && <Th field="campaignId" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>ID Campanha</Th>}
                 {isCol('adsetId') && <Th field="adsetId" sortField={sortField} sortOrder={sortOrder} onSort={handleSort}>ID Conjunto</Th>}
@@ -556,19 +573,21 @@ export default function AnunciosPage() {
                     {isCol('pendingSales') && <Td>{num(r.pendingOrders)}</Td>}
                     {isCol('revenue') && <Td>{money(r.revenue, currency)}</Td>}
                     {isCol('profit') && <Td cls={r.profit >= 0 ? 'text-good' : 'text-bad'}>{money(r.profit, currency)}</Td>}
-                    {isCol('roas') && <Td cls={r.roas != null && r.roas >= 1 ? 'text-good' : r.roas === 0 ? 'text-bad' : ''}>{ratio(r.roas)}</Td>}
+                    {isCol('roas') && <Td cls={metricClass('roas', r.roas)}>{ratio(r.roas)}</Td>}
                     {isCol('margin') && <Td cls={r.margin != null && r.margin >= 0 ? 'text-good' : 'text-bad'}>{pct(r.margin)}</Td>}
                     {isCol('cpa') && <Td>{r.cpa == null ? '-' : money(r.cpa, currency)}</Td>}
                     {isCol('arpu') && <Td>{r.arpu == null ? '-' : money(r.arpu, currency)}</Td>}
                     {isCol('costPerIc') && <Td>{r.costPerIc == null ? '-' : money(r.costPerIc, currency)}</Td>}
-                    {isCol('cpc') && <Td>{r.cpc == null ? '-' : money(r.cpc, currency)}</Td>}
-                    {isCol('ctr') && <Td>{pct(r.ctr)}</Td>}
+                    {isCol('cpc') && <Td cls={metricClass('cpc', r.cpc)}>{r.cpc == null ? '-' : money(r.cpc, currency)}</Td>}
+                    {isCol('ctr') && <Td cls={metricClass('ctr', r.ctr)}>{pct(r.ctr)}</Td>}
                     {isCol('cpm') && <Td>{r.cpm == null ? '-' : money(r.cpm, currency)}</Td>}
                     {isCol('impressions') && <Td>{num(r.impressions)}</Td>}
                     {isCol('clicks') && <Td>{num(r.clicks)}</Td>}
                     {isCol('visits') && <Td>{num(r.visits)}</Td>}
                     {isCol('ic') && <Td>{num(r.ic)}</Td>}
-                    {isCol('icRate') && <Td>{pct(r.icRate)}</Td>}
+                    {isCol('connect') && <Td cls={metricClass('connect', r.connect)}>{pct(r.connect)}</Td>}
+                    {isCol('conversion') && <Td cls={metricClass('conversion', r.conversion)}>{pct(r.conversion)}</Td>}
+                    {isCol('icRate') && <Td cls={metricClass('icRate', r.icRate)}>{pct(r.icRate)}</Td>}
                     {isCol('id') && <Td muted><span className="font-mono text-xs">{r.id}</span></Td>}
                     {isCol('campaignId') && <Td muted><span className="font-mono text-xs">{r.campaignId || '-'}</span></Td>}
                     {isCol('adsetId') && <Td muted><span className="font-mono text-xs">{r.adsetId || '-'}</span></Td>}
@@ -588,19 +607,21 @@ export default function AnunciosPage() {
                 {isCol('pendingSales') && <Td>{num(totals.pending)}</Td>}
                 {isCol('revenue') && <Td>{money(totals.revenue, currency)}</Td>}
                 {isCol('profit') && <Td cls={totals.profit >= 0 ? 'text-good' : 'text-bad'}>{money(totals.profit, currency)}</Td>}
-                {isCol('roas') && <Td>{totals.spend > 0 ? ratio(totals.revenue / totals.spend) : '-'}</Td>}
+                {isCol('roas') && <Td cls={metricClass('roas', totals.spend > 0 ? totals.revenue / totals.spend : null)}>{totals.spend > 0 ? ratio(totals.revenue / totals.spend) : '-'}</Td>}
                 {isCol('margin') && <Td>{totals.revenue > 0 ? pct(totals.profit / totals.revenue) : '-'}</Td>}
                 {isCol('cpa') && <Td>{totals.sales > 0 ? money(Math.round(totals.spend / totals.sales), currency) : '-'}</Td>}
                 {isCol('arpu') && <Td>{totals.visits > 0 ? money(Math.round(totals.revenue / totals.visits), currency) : totals.sales > 0 ? money(Math.round(totals.revenue / totals.sales), currency) : '-'}</Td>}
                 {isCol('costPerIc') && <Td>{totals.ic > 0 ? money(Math.round(totals.spend / totals.ic), currency) : '-'}</Td>}
-                {isCol('cpc') && <Td>{totals.clicks > 0 ? money(Math.round(totals.spend / totals.clicks), currency) : '-'}</Td>}
-                {isCol('ctr') && <Td>{totals.impressions > 0 ? pct(totals.clicks / totals.impressions) : '-'}</Td>}
+                {isCol('cpc') && <Td cls={metricClass('cpc', totals.clicks > 0 ? Math.round(totals.spend / totals.clicks) : null)}>{totals.clicks > 0 ? money(Math.round(totals.spend / totals.clicks), currency) : '-'}</Td>}
+                {isCol('ctr') && <Td cls={metricClass('ctr', totals.impressions > 0 ? totals.clicks / totals.impressions : null)}>{totals.impressions > 0 ? pct(totals.clicks / totals.impressions) : '-'}</Td>}
                 {isCol('cpm') && <Td>{totals.impressions > 0 ? money(Math.round((totals.spend / totals.impressions) * 1000), currency) : '-'}</Td>}
                 {isCol('impressions') && <Td>{num(totals.impressions)}</Td>}
                 {isCol('clicks') && <Td>{num(totals.clicks)}</Td>}
                 {isCol('visits') && <Td>{num(totals.visits)}</Td>}
                 {isCol('ic') && <Td>{num(totals.ic)}</Td>}
-                {isCol('icRate') && <Td>{totals.visits > 0 ? pct(totals.ic / totals.visits) : totals.clicks > 0 ? pct(totals.ic / totals.clicks) : '-'}</Td>}
+                {isCol('connect') && <Td cls={metricClass('connect', totals.clicks > 0 ? totals.visits / totals.clicks : null)}>{totals.clicks > 0 ? pct(totals.visits / totals.clicks) : '-'}</Td>}
+                {isCol('conversion') && <Td cls={metricClass('conversion', totals.ic > 0 ? totals.sales / totals.ic : null)}>{totals.ic > 0 ? pct(totals.sales / totals.ic) : '-'}</Td>}
+                {isCol('icRate') && <Td cls={metricClass('icRate', totals.visits > 0 ? totals.ic / totals.visits : null)}>{totals.visits > 0 ? pct(totals.ic / totals.visits) : '-'}</Td>}
                 {isCol('id') && <Td muted>-</Td>}
                 {isCol('campaignId') && <Td muted>-</Td>}
                 {isCol('adsetId') && <Td muted>-</Td>}

@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import MetricGuide from '../../components/metric-guide'
+import { metricBand, BAND_LABELS } from '../../../lib/metric-thresholds'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bar,
@@ -163,6 +165,7 @@ export default function DashboardPage() {
 
   const o = data.ordersCount || {}
   const totalApprovedSales = Number(o.approved || 0)
+  const roasBand = metricBand('roas', data.roas)
   const empty = o.total === 0 && Number(data.spend || 0) === 0
   const arpu = totalApprovedSales > 0 ? Math.round(Number(data.revenue || 0) / totalApprovedSales) : 0
   const totalAccountsBalance = (data.byAdAccount || []).reduce(
@@ -246,6 +249,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      <MetricGuide currency={currency} current={{ ctr: data.ctr, cpc: data.cpc, roas: data.roas, clicks: data.clicks, visits: data.funnel?.pageViews?.count, ic: data.funnel?.ics?.count, approvedOrders: o.approved }} />
+
       {empty && <PrimeiroUso />}
 
       {/* CARDS SUPERIORES - LINHA 1 */}
@@ -293,10 +298,7 @@ export default function DashboardPage() {
         <StatCard
           title="ROAS"
           value={ratio(data.roas)}
-          tag={{
-            label: Number(data.roas || 0) >= 2 ? 'Escalar' : Number(data.roas || 0) >= 1 ? '↑ OK' : 'Alerta',
-            tone: Number(data.roas || 0) >= 1 ? 'good' : 'bad',
-          }}
+          tag={roasBand ? { label: BAND_LABELS[roasBand], tone: roasBand === 'ideal' ? 'good' : roasBand === 'attention' ? 'warn' : 'bad' } : undefined}
         />
       </div>
 
@@ -746,7 +748,7 @@ function StatCard({
   value: string
   sub?: string
   valueTone?: 'good' | 'bad'
-  tag?: { label: string; tone: 'good' | 'bad' }
+  tag?: { label: string; tone: 'good' | 'warn' | 'bad' }
 }) {
   const valueColor =
     valueTone === 'good' ? 'text-good' : valueTone === 'bad' ? 'text-bad' : 'text-white'
@@ -758,7 +760,7 @@ function StatCard({
         {tag && (
           <span
             className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-              tag.tone === 'good' ? 'bg-good/15 text-good' : 'bg-bad/15 text-bad'
+              tag.tone === 'good' ? 'bg-good/15 text-good' : tag.tone === 'warn' ? 'bg-warn/15 text-warn' : 'bg-bad/15 text-bad'
             }`}
           >
             {tag.label}
