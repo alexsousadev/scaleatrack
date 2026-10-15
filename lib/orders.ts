@@ -11,7 +11,7 @@ import type { NormalizedOrder } from './adapters'
  *      engoliu as UTMs -- e o caso mais comum de venda "nao trackeada";
  *   3. nada: o pedido fica como organico.
  */
-export async function ingestOrder(dashboardId: string, platform: string, order: NormalizedOrder, raw: unknown) {
+export async function ingestOrder(dashboardId: string, platform: string, order: NormalizedOrder, raw: unknown, integration?: { id: string; name: string }) {
   await initDb()
 
   let utms: Utms = order.utms || {}
@@ -137,6 +137,12 @@ export async function ingestOrder(dashboardId: string, platform: string, order: 
     args: [dashboardId, platform, order.externalId],
   })
   const orderId = String((found.rows[0] as any).id)
+  if (integration) {
+    await db.execute({
+      sql: `UPDATE orders SET integration_id = ?, integration_name = ? WHERE id = ?`,
+      args: [integration.id, integration.name, orderId],
+    })
+  }
 
   await db.execute({ sql: `DELETE FROM order_items WHERE order_id = ?`, args: [orderId] })
   for (const item of order.items) {

@@ -109,3 +109,47 @@ test('Lowify lifecycle uses sale_amount in reais, stable order ID and tracking',
     assert.equal(normalize('generic', payload).grossCents, 9700)
   }
 })
+
+test('Dedicated Lowify and Wiapy routes use their own adapters', () => {
+  assert.equal(normalize('lowify', { order_id: 'low-1', event: 'sale.pending', sale_amount: 97 }).status, 'waiting_payment')
+  assert.equal(normalize('wiapy', { payment: { id: 'wia-1', status: 'unpaid', amount: 1770 } }).grossCents, 1770)
+})
+
+test('Legacy integration settings recognize providers and preserve custom names separately', () => {
+  const { integrationPlatform } = require('../lib/integration-platform.ts')
+  assert.equal(integrationPlatform('API', 'wiapy'), 'wiapy')
+  assert.equal(integrationPlatform('generic', 'lowify'), 'lowify')
+  assert.equal(integrationPlatform('wiapy', 'Minha Loja'), 'wiapy')
+  assert.equal(integrationPlatform('generic', 'Minha Loja'), 'generic')
+  assert.equal(integrationPlatform('hotmart', 'tech'), 'hotmart')
+})
+
+test('Historical orders recover only one unambiguous source within their dashboard', async () => {
+  const { createClient } = require('@libsql/client')
+  const { ORDER_INTEGRATION_BACKFILL } = require('../lib/order-integration-backfill.ts')
+  const db = createClient({ url: 'file::memory:' })
+  try {
+    await db.executeMultiple(`
+      CREATE TABLE orders(id TEXT, dashboard_id TEXT, platform TEXT, raw TEXT, integration_id TEXT, integration_name TEXT);
+      CREATE TABLE api_tokens(id TEXT, dashboard_id TEXT, platform TEXT, name TEXT);
+      CREATE TABLE webhooks(id TEXT, dashboard_id TEXT, platform TEXT, name TEXT);
+      INSERT INTO api_tokens VALUES ('1','a','API','wiapy'), ('2','b','API','wiapy');
+      INSERT INTO orders(id,dashboard_id,platform,raw) VALUES ('o1','a','generic','{"payment":{"id":"123"}}');
+      INSERT INTO orders(id,dashboard_id,platform,raw) VALUES ('bad','a','generic','invalid json');
+    `)
+    await db.execute(ORDER_INTEGRATION_BACKFILL)
+    let rows = (await db.execute(`SELECT * FROM orders WHERE id='o1'`)).rows
+    assert.equal(rows[0].integration_name, 'wiapy')
+    assert.equal(rows[0].integration_id, 'token:1')
+    await db.executeMultiple(`
+      INSERT INTO api_tokens VALUES ('3','b','wiapy','Outra conta');
+      INSERT INTO orders(id,dashboard_id,platform,raw) VALUES ('o2','b','generic','{"payment":{"id":"456"}}');
+    `)
+    await db.execute(ORDER_INTEGRATION_BACKFILL)
+    rows = (await db.execute(`SELECT * FROM orders WHERE id='o2'`)).rows
+    assert.equal(rows[0].integration_name, null)
+    assert.equal((await db.execute(`SELECT integration_name FROM orders WHERE id='bad'`)).rows[0].integration_name, null)
+  } finally {
+    db.close()
+  }
+})

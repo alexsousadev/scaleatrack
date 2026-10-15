@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, initDb, newId } from '@/lib/db'
+import { integrationPlatform } from '@/lib/integration-platform'
 import { integrationUrl } from '@/lib/integration-url'
 import { errorResponse } from '@/lib/request'
 
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
       args: [dashboardId],
     })
     return NextResponse.json({
-      tokens: (r.rows as any[]).map((t) => ({ ...t, token: maskToken(String(t.token || '')), url: integrationUrl(req, 'generic', String(t.token)) })),
+      tokens: (r.rows as any[]).map((t) => ({ ...t, platform: integrationPlatform(t.platform, t.name), token: maskToken(String(t.token || '')), url: integrationUrl(req, integrationPlatform(t.platform, t.name), String(t.token)) })),
     })
   } catch (e) {
     return errorResponse(e)
@@ -40,9 +41,9 @@ export async function POST(req: NextRequest) {
     const id = newId()
     await db.execute({
       sql: `INSERT INTO api_tokens (id, dashboard_id, name, platform, token) VALUES (?,?,?,?,?)`,
-      args: [id, dashboardId, name || 'Token API', platform || 'API', token],
+      args: [id, dashboardId, name || 'Token API', integrationPlatform(platform), token],
     })
-    return NextResponse.json({ id, token, url: integrationUrl(req, 'generic', token) })
+    return NextResponse.json({ id, token, url: integrationUrl(req, integrationPlatform(platform), token) })
   } catch (e) {
     return errorResponse(e)
   }

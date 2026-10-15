@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, initDb } from '@/lib/db'
 import { normalize } from '@/lib/adapters'
 import { ingestOrder } from '@/lib/orders'
+import { integrationPlatform } from '@/lib/integration-platform'
 import { enqueueCapi } from '@/lib/capi'
 
 type WebhookPayload = {
@@ -28,22 +29,24 @@ async function readWebhookPayload(req: NextRequest): Promise<WebhookPayload> {
 
 async function findWebhook(platform: string, webhookId: string) {
   await initDb()
-  if (platform === 'generic' && webhookId.startsWith('lt_')) {
+  if (webhookId.startsWith('lt_')) {
     const result = await db.execute({
-      sql: `SELECT id, dashboard_id, enabled FROM api_tokens WHERE token = ?`,
+      sql: `SELECT id, dashboard_id, enabled, name, platform FROM api_tokens WHERE token = ?`,
       args: [webhookId],
     })
     const token: any = result.rows[0]
     if (!token || !token.enabled) {
       return { response: NextResponse.json({ ok: false, error: 'URL invalida' }, { status: 404 }) }
     }
-    return { hook: { ...token, platform: 'generic', secret: null, apiTokenId: token.id } }
+    const configured = integrationPlatform(token.platform, token.name)
+    if (platform !== 'generic' && platform !== configured) return { response: NextResponse.json({ error: 'plataforma divergente' }, { status: 400 }) }
+    return { hook: { ...token, platform: 'generic', adapter: configured, secret: null, apiTokenId: token.id } }
   }
   const hook = await db.execute({ sql: `SELECT * FROM webhooks WHERE id = ?`, args: [webhookId] })
   const h: any = hook.rows[0]
 
   if (!h || !h.enabled) return { response: NextResponse.json({ ok: false, error: 'webhook invalido' }, { status: 404 }) }
-  if (h.platform !== platform) return { response: NextResponse.json({ ok: false, error: 'plataforma divergente' }, { status: 400 }) }
+  if (h.platform !== platform && integrationPlatform(h.platform, h.name) !== platform) return { response: NextResponse.json({ ok: false, error: 'plataforma divergente' }, { status: 400 }) }
 
   return { hook: h }
 }
@@ -68,7 +71,7 @@ export async function handleWebhookPost(req: NextRequest, platform: string, webh
   if (invalidJson) return NextResponse.json({ ok: true, ignored: 'payload_nao_json' })
 
   if (h.secret) {
-    const got = (platform === 'hotmart' ? req.headers.get('x-hotmart-hottok') : null) || req.headers.get('x-webhook-secret') || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || payload?.secret
+    const got = ((h.adapter || integrationPlatform(h.platform, h.name)) === 'hotmart' ? req.headers.get('x-hotmart-hottok') : null) || req.headers.get('x-webhook-secret') || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || payload?.secret
     if (got !== h.secret) return NextResponse.json({ ok: false, error: 'segredo invalido' }, { status: 401 })
   }
 
@@ -76,7 +79,8 @@ export async function handleWebhookPost(req: NextRequest, platform: string, webh
     await db.execute({ sql: `UPDATE api_tokens SET last_used_at = datetime('now') WHERE id = ?`, args: [h.apiTokenId] })
   }
 
-  const order = normalize(platform, payload)
+  const adapter = h.adapter || integrationPlatform(h.platform, h.name)
+  const order = normalize(adapter, payload)
   if (!order) return NextResponse.json({ ok: true, ignored: true })
 
   const saleType = req.nextUrl.searchParams.get('saleType')
@@ -85,7 +89,10 @@ export async function handleWebhookPost(req: NextRequest, platform: string, webh
     return NextResponse.json({ ok: true, ignored: 'recorrencia' })
   }
 
-  const result = await ingestOrder(h.dashboard_id, platform, order, payload)
+  const result = await ingestOrder(h.dashboard_id, h.platform, order, payload, {
+    id: h.apiTokenId ? `token:${h.id}` : `webhook:${h.id}`,
+    name: h.name || adapter,
+  })
 
   const wantPending = order.status === 'waiting_payment'
   const pixels = await db.execute({
@@ -101,7 +108,7 @@ export async function handleWebhookPost(req: NextRequest, platform: string, webh
 
     await enqueueCapi(h.dashboard_id, String(p.id), {
       eventName: 'Purchase',
-      eventId: `${platform}-${order.externalId}`,
+      eventId: `${h.platform}-${order.externalId}`,
       eventTime: Math.floor(new Date(order.approvedAt || order.createdAt).getTime() / 1000),
       valueCents,
       currency: order.currency || 'BRL',

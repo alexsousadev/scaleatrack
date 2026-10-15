@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, initDb, newId } from '@/lib/db'
+import { integrationPlatform } from '@/lib/integration-platform'
 import { integrationUrl } from '@/lib/integration-url'
 import { errorResponse } from '@/lib/request'
 import { PLATFORMS, type Platform } from '@/lib/adapters'
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
       args: [dashboardId],
     })
     return NextResponse.json({
-      webhooks: (r.rows as any[]).map((w) => ({ ...w, integrationUrls: urlsFor(req, w.platform, w.id) })),
+      webhooks: (r.rows as any[]).map((w) => ({ ...w, platform: integrationPlatform(w.platform, w.name), integrationUrls: urlsFor(req, integrationPlatform(w.platform, w.name), w.id) })),
     })
   } catch (e) {
     return errorResponse(e)

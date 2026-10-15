@@ -2,21 +2,25 @@ import type { NormalizedOrder } from './base'
 import { normalizeKirvano } from './kirvano'
 import { normalizeCakto } from './cakto'
 import { normalizeHotmart } from './hotmart'
+import { normalizeWiapy } from './wiapy'
+import { normalizeLowify } from './lowify'
 import { normalizeGeneric } from './generic'
 
-export type Platform = 'kirvano' | 'cakto' | 'hotmart' | 'generic'
+export type Platform = 'kirvano' | 'cakto' | 'hotmart' | 'lowify' | 'wiapy' | 'generic'
 
 export const PLATFORMS: { id: Platform; label: string }[] = [
-  { id: 'kirvano', label: 'Kirvano' },
-  { id: 'cakto', label: 'Cakto' },
+  { id: 'lowify', label: 'Lowify' },
+  { id: 'wiapy', label: 'Wiapy' },
   { id: 'hotmart', label: 'Hotmart' },
-  { id: 'generic', label: 'Generico (qualquer gateway)' },
+  { id: 'generic', label: 'Genérico (outra plataforma)' },
 ]
 
 const MAP: Record<Platform, (p: any) => NormalizedOrder | null> = {
   kirvano: normalizeKirvano,
   cakto: normalizeCakto,
   hotmart: normalizeHotmart,
+  lowify: normalizeLowify,
+  wiapy: normalizeWiapy,
   generic: normalizeGeneric,
 }
 

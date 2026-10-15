@@ -1,3 +1,4 @@
+import { ORDER_INTEGRATION_BACKFILL } from './order-integration-backfill'
 import { createClient } from '@libsql/client'
 import { randomBytes } from 'crypto'
 
@@ -326,6 +327,9 @@ export function initDb() {
       await addColumn('ad_accounts', 'spend_cap_cents', 'INTEGER')
       await addColumn('ad_accounts', 'amount_spent_cents', 'INTEGER')
       await addColumn('ad_accounts', 'billing_threshold_cents', 'INTEGER DEFAULT 0')
+      await addColumn('orders', 'integration_id', 'TEXT')
+      await addColumn('orders', 'integration_name', 'TEXT')
+      await db.execute(ORDER_INTEGRATION_BACKFILL)
     })().catch((e) => {
       ready = null
       throw e

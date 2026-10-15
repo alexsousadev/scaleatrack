@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(Number(req.nextUrl.searchParams.get('limit') || 100), 500)
 
     const args: any[] = [dashboardId, range.fromUtc, range.toUtc]
-    let sql = `SELECT o.id, o.platform, o.external_id, o.status, o.payment_method,
+    let sql = `SELECT o.id, COALESCE(NULLIF(o.integration_name, ''), o.platform) AS platform, o.platform AS platform_code, o.external_id, o.status, o.payment_method,
                       o.customer_name, o.customer_email, o.customer_phone, o.customer_country, o.customer_ip,
                       o.gross_cents, o.net_cents, o.gateway_fee_cents, o.tax_cents, o.cost_cents,
                       o.src, o.sck, o.utm_source, o.utm_medium, o.utm_campaign, o.utm_content, o.utm_term,
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       args.push(origin)
     }
     if (platform) {
-      sql += ` AND o.platform = ?`
+      sql += ` AND COALESCE(NULLIF(o.integration_name, ''), o.platform) = ?`
       args.push(platform)
     }
     if (campaign) {
@@ -63,10 +63,10 @@ export async function GET(req: NextRequest) {
              WHERE o.dashboard_id = ? AND o.created_at BETWEEN ? AND ?
              GROUP BY i.product_name
             UNION ALL
-            SELECT 'platform' AS kind, o.platform AS value
+            SELECT 'platform' AS kind, COALESCE(NULLIF(o.integration_name, ''), o.platform) AS value
               FROM orders o
              WHERE o.dashboard_id = ? AND o.created_at BETWEEN ? AND ?
-             GROUP BY o.platform
+             GROUP BY COALESCE(NULLIF(o.integration_name, ''), o.platform)
             UNION ALL
             SELECT 'campaign' AS kind, o.utm_campaign AS value
               FROM orders o
