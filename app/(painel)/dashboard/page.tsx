@@ -73,8 +73,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchSummary()
+    const refresh = () => { if (document.visibilityState === 'visible') fetchSummary() }
+    const timer = window.setInterval(refresh, 30000)
+    window.addEventListener('focus', refresh)
     window.addEventListener('scaletrack:meta-sync', fetchSummary)
     return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
       window.removeEventListener('scaletrack:meta-sync', fetchSummary)
     }
   }, [dashboardId, from, to, selectedAccount])

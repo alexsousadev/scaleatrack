@@ -95,6 +95,7 @@ export async function ingestOrder(dashboardId: string, platform: string, order: 
             payment_method = COALESCE(excluded.payment_method, orders.payment_method),
             gross_cents = excluded.gross_cents,
             net_cents = excluded.net_cents,
+            gateway_fee_cents = excluded.gateway_fee_cents,
             tax_cents = excluded.tax_cents,
             cost_cents = excluded.cost_cents,
             approved_at = COALESCE(excluded.approved_at, orders.approved_at),

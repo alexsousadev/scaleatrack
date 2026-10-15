@@ -1,3 +1,6 @@
+import { normalizeLowify } from './lowify'
+import { normalizeHotmart } from './hotmart'
+import { normalizeWiapy } from './wiapy'
 import { NormalizedOrder, OrderStatus, extractUtms, mapStatus, pick, toCents, toIso } from './base'
 
 const STATUS: Record<string, OrderStatus> = {
@@ -18,6 +21,9 @@ const STATUS: Record<string, OrderStatus> = {
  * order_id / status / value. Serve pra plugar plataforma nova sem escrever codigo.
  */
 export function normalizeGeneric(payload: any): NormalizedOrder | null {
+  if (payload?.order_id && payload.sale_amount != null && String(payload.event || '').startsWith('sale.')) return normalizeLowify(payload)
+  if (payload?.data?.purchase?.transaction) return normalizeHotmart(payload)
+  if (payload && Object.prototype.hasOwnProperty.call(payload, 'payment')) return normalizeWiapy(payload)
   const externalId = pick(payload, ['order_id', 'orderId', 'transaction_id', 'id', 'data.id'])
   if (!externalId) return null
 

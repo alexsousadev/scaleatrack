@@ -7,20 +7,30 @@ const STATUS: Record<string, OrderStatus> = {
   COMPLETE: 'paid',
   PURCHASE_CANCELED: 'refused',
   CANCELED: 'refused',
+  CANCELLED: 'refused',
+  PURCHASE_EXPIRED: 'refused',
+  EXPIRED: 'refused',
+  NO_FUNDS: 'refused',
   PURCHASE_REFUNDED: 'refunded',
   REFUNDED: 'refunded',
   PURCHASE_CHARGEBACK: 'chargedback',
   CHARGEBACK: 'chargedback',
   PURCHASE_BILLET_PRINTED: 'waiting_payment',
-  PURCHASE_OUT_OF_SHOPPING_CART: 'waiting_payment',
+  PRINTED_BILLET: 'waiting_payment',
+  PURCHASE_DELAYED: 'waiting_payment',
+  OVERDUE: 'waiting_payment',
+  PRE_ORDER: 'waiting_payment',
+  PROCESSING_TRANSACTION: 'waiting_payment',
+  UNDER_ANALISYS: 'waiting_payment',
   WAITING_PAYMENT: 'waiting_payment',
   STARTED: 'waiting_payment',
 }
 
 export function normalizeHotmart(payload: any): NormalizedOrder | null {
+  if (payload?.event === 'PURCHASE_OUT_OF_SHOPPING_CART') return null
   const data = payload?.data ?? payload
   const purchase = data?.purchase ?? {}
-  const externalId = pick(purchase, ['transaction']) ?? pick(payload, ['id'])
+  const externalId = pick(purchase, ['transaction'])
   if (!externalId) return null
 
   const status = mapStatus(pick(payload, ['event']), STATUS) ?? mapStatus(pick(purchase, ['status']), STATUS)
@@ -34,7 +44,8 @@ export function normalizeHotmart(payload: any): NormalizedOrder | null {
   // A comissao do produtor vem na lista de commissions com source PRODUCER.
   const commissions: any[] = Array.isArray(data?.commissions) ? data.commissions : []
   const producer = commissions.find((c) => String(c?.source || '').toUpperCase() === 'PRODUCER')
-  const net = producer ? toCents(producer.value) : gross
+  const affiliate = commissions.find((c) => String(c?.source || '').toUpperCase() === 'AFFILIATE')
+  const net = producer ? toCents(producer.value) : affiliate ? toCents(affiliate.value) : gross
 
   const product = data?.product ?? {}
   const buyer = data?.buyer ?? {}
@@ -45,7 +56,7 @@ export function normalizeHotmart(payload: any): NormalizedOrder | null {
     paymentMethod: normalizeMethod(pick(purchase, ['payment.type'])),
     installments: Number(pick(purchase, ['payment.installments_number'])) || null,
     isRecurring: !!pick(data, ['subscription']),
-    saleType: producer ? 'producer' : 'affiliate',
+    saleType: !producer && affiliate ? 'affiliate' : 'producer',
 
     customerName: buyer.name ?? null,
     customerEmail: buyer.email ?? null,
@@ -73,6 +84,7 @@ export function normalizeHotmart(payload: any): NormalizedOrder | null {
         planName: pick(purchase, ['offer.code']) ?? null,
         quantity: 1,
         priceCents: gross,
+        isBump: purchase.order_bump?.is_order_bump === true,
       },
     ],
   }

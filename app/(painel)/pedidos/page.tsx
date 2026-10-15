@@ -40,7 +40,7 @@ function short(v?: string | null, n = 26) {
 export default function PedidosPage() {
   const query = useQuery()
   const { currency } = usePanel()
-  const [status, setStatus] = useState('paid')
+  const [status, setStatus] = useState('')
   const [origin, setOrigin] = useState('')
   const [product, setProduct] = useState('')
   const [platform, setPlatform] = useState('')
@@ -60,14 +60,25 @@ export default function PedidosPage() {
     if (campaign) params.set('campaign', campaign)
     params.set('limit', '300')
 
-    setLoading(true)
-    fetch(`/api/orders?${params.toString()}`)
+    const load = () => fetch(`/api/orders?${params.toString()}`)
       .then((r) => r.json())
       .then((j) => {
         setRows(j.orders || [])
         setOptions(j.options || { products: [], platforms: [], campaigns: [], origins: [] })
       })
+      .catch(() => {})
       .finally(() => setLoading(false))
+    setLoading(true)
+    void load()
+    const refresh = () => { if (document.visibilityState === 'visible') void load() }
+    const timer = window.setInterval(refresh, 30000)
+    window.addEventListener('scaletrack:meta-sync', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('scaletrack:meta-sync', refresh)
+      window.removeEventListener('focus', refresh)
+    }
   }, [query, status, origin, product, platform, campaign])
 
   const title = useMemo(() => {

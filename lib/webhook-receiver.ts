@@ -68,7 +68,7 @@ export async function handleWebhookPost(req: NextRequest, platform: string, webh
   if (invalidJson) return NextResponse.json({ ok: true, ignored: 'payload_nao_json' })
 
   if (h.secret) {
-    const got = req.headers.get('x-webhook-secret') || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || payload?.secret
+    const got = (platform === 'hotmart' ? req.headers.get('x-hotmart-hottok') : null) || req.headers.get('x-webhook-secret') || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || payload?.secret
     if (got !== h.secret) return NextResponse.json({ ok: false, error: 'segredo invalido' }, { status: 401 })
   }
 
